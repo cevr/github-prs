@@ -6,7 +6,7 @@
   "permissions": ["storage", "alarms"],
   "host_permissions": ["https://api.github.com/*"],
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "dist/popup/popup.html",
     "default_icon": {
       "16": "icon.webp",
       "48": "icon.webp",
@@ -21,5 +21,5 @@
     "48": "icon.webp",
     "128": "icon.webp"
   },
-  "options_page": "options.html"
+  "options_page": "dist/options/options.html"
 }
