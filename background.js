@@ -51,11 +51,11 @@ async function checkForUpdates() {
     // Store the current PRs
     const currentPRs = { created: createdPRs, assigned: assignedPRs };
 
-    // Get previous PR data to compare
-    const { previousPRs } = await chrome.storage.local.get(['previousPRs']);
+    // Get previous PR data and viewed PRs to compare
+    const { previousPRs, viewedPRs = {} } = await chrome.storage.local.get(['previousPRs', 'viewedPRs']);
 
     // Check for updates
-    const hasUpdates = checkForPRUpdates(previousPRs, currentPRs);
+    const hasUpdates = checkForPRUpdates(previousPRs, currentPRs, viewedPRs);
 
     // Update badge
     const totalPRs = createdPRs.length + assignedPRs.length;
@@ -102,7 +102,7 @@ async function fetchPRs(query, token) {
 }
 
 // Check if there are updates in PRs
-function checkForPRUpdates(previousPRs, currentPRs) {
+function checkForPRUpdates(previousPRs, currentPRs, viewedPRs) {
   if (!previousPRs) return false;
 
   // Helper function to check for updates in a PR list
@@ -111,9 +111,12 @@ function checkForPRUpdates(previousPRs, currentPRs) {
 
     for (const newPR of newList) {
       const oldPR = oldList.find(pr => pr.id === newPR.id);
-      if (!oldPR || new Date(newPR.updated_at) > new Date(oldPR.updated_at)) {
+      // Check if PR has updates and hasn't been viewed since the update
+      if (!oldPR ||
+          (new Date(newPR.updated_at) > new Date(oldPR.updated_at) &&
+           (!viewedPRs[newPR.id] || new Date(newPR.updated_at) > new Date(viewedPRs[newPR.id])))) {
         return true;
-      }
+      } D
     }
     return false;
   };
@@ -136,6 +139,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.action === 'updateSettings') {
     setupAlarm(message.checkInterval || DEFAULT_CHECK_INTERVAL);
     sendResponse({ status: 'updated' });
+  } else if (message.action === 'markPRViewed') {
+    // Mark a PR as viewed
+    chrome.storage.local.get(['viewedPRs'], (result) => {
+      const viewedPRs = result.viewedPRs || {};
+      viewedPRs[message.prId] = new Date().toISOString();
+      chrome.storage.local.set({ viewedPRs }, () => {
+        // Recheck for updates to update badge
+        checkForUpdates();
+        sendResponse({ status: 'marked' });
+      });
+    });
+    return true;
   }
   return true;
 });

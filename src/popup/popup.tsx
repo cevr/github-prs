@@ -85,8 +85,15 @@ export const PopupApp: React.FC = () => {
   }
 
   // Open PR in new tab
-  function openPR(url: string) {
+  function openPR(url: string, prId: number) {
+    // Mark PR as viewed
+    chrome.runtime.sendMessage({ action: 'markPRViewed', prId });
     chrome.tabs.create({ url });
+  }
+
+  // Mark PR as viewed on hover
+  function handlePRHover(prId: number) {
+    chrome.runtime.sendMessage({ action: 'markPRViewed', prId });
   }
 
   // Helper: Extract repo name from repository URL
@@ -244,7 +251,12 @@ export const PopupApp: React.FC = () => {
       ) : (
         <ul className="pr-list">
           {currentPRs.map(pr => (
-            <li key={pr.id} className="pr-item" onClick={() => openPR(pr.html_url)}>
+            <li
+              key={pr.id}
+              className="pr-item"
+              onClick={() => openPR(pr.html_url, pr.id)}
+              onMouseEnter={() => handlePRHover(pr.id)}
+            >
               <div className="pr-title">{pr.title}</div>
               <div className="pr-meta">
                 <span className="pr-repo">{getRepoNameFromUrl(pr.repository_url)} #{pr.number}</span>
