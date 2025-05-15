@@ -104,45 +104,18 @@
       margin-bottom: 8px;
     }
   </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "preact": "https://esm.sh/preact@10.23.1",
+      "preact/": "https://esm.sh/preact@10.23.1/",
+      "htm": "https://esm.sh/htm"
+    }
+  }
+  </script>
 </head>
 <body>
-  <h1>GitHub PR Tracker Settings</h1>
-
-  <div class="token-section">
-    <h2>How to create a GitHub Personal Access Token:</h2>
-    <ol>
-      <li>Go to <a href="https://github.com/settings/tokens" target="_blank">GitHub Personal Access Tokens</a></li>
-      <li>Click on "Generate new token" and select "Generate new token (classic)"</li>
-      <li>Give your token a descriptive name (e.g., "PR Tracker Extension")</li>
-      <li>Select the following scopes: <strong>repo</strong> (to access repositories)</li>
-      <li>Click "Generate token" at the bottom of the page</li>
-      <li>Copy the generated token and paste it below</li>
-    </ol>
-  </div>
-
-  <div class="form-group">
-    <label for="token">GitHub Personal Access Token:</label>
-    <input type="password" id="token" placeholder="ghp_xxxxxxxxxxxxxxxx">
-    <div class="help-text">Your token is stored locally and only used to access GitHub API.</div>
-  </div>
-
-  <div class="form-group">
-    <label for="username">GitHub Username:</label>
-    <input type="text" id="username" placeholder="yourusername">
-  </div>
-
-  <div class="form-group">
-    <label for="interval">Check Interval (minutes):</label>
-    <input type="number" id="interval" min="5" max="60" placeholder="15">
-    <div class="help-text">How often to check for PR updates (minimum 5 minutes).</div>
-  </div>
-
-  <div id="status" class="status" style="display: none;"></div>
-
-  <div class="button-group">
-    <button id="save">Save Settings</button>
-  </div>
-
-  <script src="options.js"></script>
+  <div id="app"></div>
+  <script src="options.js" type="module"></script>
 </body>
 </html>

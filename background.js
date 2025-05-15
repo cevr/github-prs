@@ -76,7 +76,7 @@ async function fetchPRs(query, token) {
     `${GITHUB_API_BASE}/search/issues?q=${encodeURIComponent(query)}&sort=updated`,
     {
       headers: {
-        'Authorization': `token ${token}`,
+        'Authorization': `Bearer ${token}`,
         'Accept': 'application/vnd.github.v3+json'
       }
     }

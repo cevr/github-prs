@@ -8,18 +8,18 @@
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
+      "16": "icon.webp",
+      "48": "icon.webp",
+      "128": "icon.webp"
     }
   },
   "background": {
     "service_worker": "background.js"
   },
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "icon.webp",
+    "48": "icon.webp",
+    "128": "icon.webp"
   },
   "options_page": "options.html"
 }
