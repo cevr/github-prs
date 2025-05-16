@@ -98,6 +98,11 @@ chrome.runtime.onMessage.addListener((request) => {
   if (request.action === "prsUpdated") {
     queryClient.invalidateQueries(prsQuery);
   }
+  if (request.action === "setupNeeded") {
+    queryClient.invalidateQueries(setupQuery);
+    queryClient.invalidateQueries(prsQuery);
+    queryClient.invalidateQueries(seenPRsQuery);
+  }
 });
 
 // Error fallback component

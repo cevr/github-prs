@@ -55,7 +55,18 @@ async function checkForUpdates() {
         token,
         `https://api.github.com/search/issues?q=is:pr+assignee:${username}+is:open`
       ),
-    ]);
+    ]).catch(async (error) => {
+      // If we get a 401, the token is expired
+      if (error.message.includes("401")) {
+        // Clear the token and username
+        await chrome.storage.sync.remove(["token", "username"]);
+        // Clear the PR data
+        await chrome.storage.local.remove(["previousPRs", "seenPRs"]);
+        // Notify the popup to show setup needed
+        await chrome.runtime.sendMessage({ action: "setupNeeded" });
+      }
+      throw error;
+    });
 
     const newPRs = {
       created: createdPRs,
@@ -68,8 +79,8 @@ async function checkForUpdates() {
     const updatedSeenPRs = { ...seenPRs };
 
     // Remove PRs that are no longer in the response
-    Object.keys(updatedSeenPRs).forEach(prId => {
-      if (!allPRs.find(pr => pr.id.toString() === prId)) {
+    Object.keys(updatedSeenPRs).forEach((prId) => {
+      if (!allPRs.find((pr) => pr.id.toString() === prId)) {
         delete updatedSeenPRs[prId];
       }
     });
@@ -99,7 +110,7 @@ async function checkForUpdates() {
     // Store new PRs and seen state
     await chrome.storage.local.set({
       previousPRs: newPRs,
-      seenPRs: updatedSeenPRs
+      seenPRs: updatedSeenPRs,
     });
     await chrome.runtime.sendMessage({ action: "prsUpdated" });
   } catch (error) {
