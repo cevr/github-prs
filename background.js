@@ -51,10 +51,18 @@ async function checkForUpdates() {
         token,
         `https://api.github.com/search/issues?q=is:pr+author:${username}+is:open`
       ),
-      fetchPRs(
-        token,
-        `https://api.github.com/search/issues?q=is:pr+is:open+assignee:${username}+OR+is:pr+is:open+review-requested:${username}`
-      ),
+      Promise.all([
+        fetchPRs(
+          token,
+          `https://api.github.com/search/issues?q=is:pr+is:open+assignee:${username}`
+        ),
+        fetchPRs(
+          token,
+          `https://api.github.com/search/issues?q=is:pr+is:open+review-requested:${username}`
+        )
+      ]).then(([assignedPRs, reviewRequestedPRs]) => {
+        return [...assignedPRs, ...reviewRequestedPRs];
+      }),
     ]).catch(async (error) => {
       // If we get a 401, the token is expired
       if (error.message.includes("401")) {
