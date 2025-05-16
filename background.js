@@ -53,7 +53,7 @@ async function checkForUpdates() {
       ),
       fetchPRs(
         token,
-        `https://api.github.com/search/issues?q=is:pr+assignee:${username}+is:open`
+        `https://api.github.com/search/issues?q=is:pr+is:open+(assignee:${username}+review-requested:${username})`
       ),
     ]).catch(async (error) => {
       // If we get a 401, the token is expired
