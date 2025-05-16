@@ -30,8 +30,15 @@ interface SeenPRs {
 }
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: Infinity } },
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 15, // 15 minutes
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  },
 });
+
 const prQuery = queryOptions({
   queryKey: ["prs"],
   queryFn: async () => {
@@ -57,12 +64,12 @@ const prQuery = queryOptions({
 
     return {
       previousPRs: previousPRs as PRData,
-      seenPRs: seenPRs as SeenPRs || {}
+      seenPRs: (seenPRs as SeenPRs) || {},
     };
   },
-  staleTime: Infinity,
 });
 
+// Prefetch the data when the extension loads
 queryClient.prefetchQuery(prQuery);
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -231,11 +238,17 @@ function PRList({ activeTab }: { activeTab: string }) {
             key={pr.id}
             className={`pr-item ${isSeen ? "pr-item-viewed" : ""}`}
             onClick={() => {
-              chrome.runtime.sendMessage({ action: "markPRViewed", prId: pr.id });
+              chrome.runtime.sendMessage({
+                action: "markPRViewed",
+                prId: pr.id,
+              });
               chrome.tabs.create({ url: pr.html_url });
             }}
             onMouseEnter={() =>
-              chrome.runtime.sendMessage({ action: "markPRViewed", prId: pr.id })
+              chrome.runtime.sendMessage({
+                action: "markPRViewed",
+                prId: pr.id,
+              })
             }
           >
             <div className="pr-title">
