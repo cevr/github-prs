@@ -1,5 +1,5 @@
 // GitHub API endpoints
-const GITHUB_API_BASE = 'https://api.github.com';
+const GITHUB_API_BASE = "https://api.github.com";
 
 // Default check interval (15 minutes)
 const DEFAULT_CHECK_INTERVAL = 15;
@@ -7,7 +7,7 @@ const DEFAULT_CHECK_INTERVAL = 15;
 // Initialize the extension
 chrome.runtime.onInstalled.addListener(() => {
   // Set default settings
-  chrome.storage.sync.get(['token', 'username', 'checkInterval'], (result) => {
+  chrome.storage.sync.get(["token", "username", "checkInterval"], (result) => {
     if (!result.checkInterval) {
       chrome.storage.sync.set({ checkInterval: DEFAULT_CHECK_INTERVAL });
     }
@@ -19,16 +19,16 @@ chrome.runtime.onInstalled.addListener(() => {
 
 // Listen for alarm
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'check-prs') {
+  if (alarm.name === "checkPRs") {
     checkForUpdates();
   }
 });
 
 // Setup the alarm for periodic checking
 function setupAlarm(interval) {
-  chrome.alarms.clear('check-prs', () => {
-    chrome.alarms.create('check-prs', {
-      periodInMinutes: parseInt(interval)
+  chrome.alarms.clear("checkPRs", () => {
+    chrome.alarms.create("checkPRs", {
+      periodInMinutes: parseInt(interval),
     });
   });
 }
@@ -36,121 +36,121 @@ function setupAlarm(interval) {
 // Check for PR updates
 async function checkForUpdates() {
   try {
-    const { token, username } = await chrome.storage.sync.get(['token', 'username']);
+    const { token, username } = await chrome.storage.sync.get([
+      "token",
+      "username",
+    ]);
+    if (!token || !username) return;
 
-    if (!token || !username) {
-      updateBadge('!', '#FF0000');
-      return;
-    }
+    // Get current seen PRs
+    const { seenPRs = {} } = await chrome.storage.local.get(["seenPRs"]);
 
+    // Fetch new PRs
     const [createdPRs, assignedPRs] = await Promise.all([
-      fetchPRs(`author:${username} is:open is:pr`, token),
-      fetchPRs(`assignee:${username} is:open is:pr -author:${username}`, token)
+      fetchPRs(
+        token,
+        `https://api.github.com/search/issues?q=is:pr+author:${username}+is:open`
+      ),
+      fetchPRs(
+        token,
+        `https://api.github.com/search/issues?q=is:pr+assignee:${username}+is:open`
+      ),
     ]);
 
-    // Store the current PRs
-    const currentPRs = { created: createdPRs, assigned: assignedPRs };
+    const newPRs = {
+      created: createdPRs,
+      assigned: assignedPRs,
+    };
 
-    // Get previous PR data and viewed PRs to compare
-    const { previousPRs, viewedPRs = {} } = await chrome.storage.local.get(['previousPRs', 'viewedPRs']);
+    // Check for updates and update seen PRs
+    let hasUpdates = false;
+    const allPRs = [...newPRs.created, ...newPRs.assigned];
+    const updatedSeenPRs = { ...seenPRs };
 
-    // Check for updates
-    const hasUpdates = checkForPRUpdates(previousPRs, currentPRs, viewedPRs);
+    // Remove PRs that are no longer in the response
+    Object.keys(updatedSeenPRs).forEach(prId => {
+      if (!allPRs.find(pr => pr.id.toString() === prId)) {
+        delete updatedSeenPRs[prId];
+      }
+    });
+
+    // Check for new or updated PRs
+    for (const pr of allPRs) {
+      const prId = pr.id.toString();
+      const lastSeen = updatedSeenPRs[prId];
+
+      if (!lastSeen || new Date(pr.updated_at) > new Date(lastSeen)) {
+        hasUpdates = true;
+      }
+    }
 
     // Update badge
-    const totalPRs = createdPRs.length + assignedPRs.length;
-    updateBadge(totalPRs.toString(), hasUpdates ? '#FF0000' : '#4CAF50');
+    const totalPRs = allPRs.length;
+    if (totalPRs > 0) {
+      chrome.action.setBadgeText({ text: totalPRs.toString() });
+      chrome.action.setBadgeTextColor({ color: "#fff" });
+      chrome.action.setBadgeBackgroundColor({
+        color: hasUpdates ? "#f00" : "#666",
+      });
+    } else {
+      chrome.action.setBadgeText({ text: "" });
+    }
 
-    // Store the current PRs for future comparison
-    chrome.storage.local.set({ previousPRs: currentPRs });
-
+    // Store new PRs and seen state
+    await chrome.storage.local.set({
+      previousPRs: newPRs,
+      seenPRs: updatedSeenPRs
+    });
+    await chrome.runtime.sendMessage({ action: "prsUpdated" });
   } catch (error) {
-    console.error('Error checking for updates:', error);
-    updateBadge('!', '#FF0000');
+    console.error("Error checking for updates:", error);
   }
 }
 
 // Fetch PRs from GitHub API
-async function fetchPRs(query, token) {
-  const response = await fetch(
-    `${GITHUB_API_BASE}/search/issues?q=${encodeURIComponent(query)}&sort=updated`,
-    {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    }
-  );
+async function fetchPRs(token, url) {
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `token ${token}`,
+      Accept: "application/vnd.github.v3+json",
+    },
+  });
 
   if (!response.ok) {
     throw new Error(`GitHub API error: ${response.status}`);
   }
 
   const data = await response.json();
-  return data.items.map(pr => ({
-    id: pr.id,
-    number: pr.number,
-    title: pr.title,
-    html_url: pr.html_url,
-    repository_url: pr.repository_url,
-    updated_at: pr.updated_at,
+  return data.items.map((item) => ({
+    id: item.id,
+    number: item.number,
+    title: item.title,
+    html_url: item.html_url,
+    repository_url: item.repository_url,
+    updated_at: item.updated_at,
     user: {
-      login: pr.user.login,
-      avatar_url: pr.user.avatar_url
-    }
+      login: item.user.login,
+      avatar_url: item.user.avatar_url,
+    },
   }));
 }
 
-// Check if there are updates in PRs
-function checkForPRUpdates(previousPRs, currentPRs, viewedPRs) {
-  if (!previousPRs) return false;
-
-  // Helper function to check for updates in a PR list
-  const checkUpdates = (oldList, newList) => {
-    if (!oldList) return false;
-
-    for (const newPR of newList) {
-      const oldPR = oldList.find(pr => pr.id === newPR.id);
-      // Check if PR has updates and hasn't been viewed since the update
-      if (!oldPR ||
-          (new Date(newPR.updated_at) > new Date(oldPR.updated_at) &&
-           (!viewedPRs[newPR.id] || new Date(newPR.updated_at) > new Date(viewedPRs[newPR.id])))) {
-        return true;
-      } D
-    }
-    return false;
-  };
-
-  return checkUpdates(previousPRs.created, currentPRs.created) ||
-         checkUpdates(previousPRs.assigned, currentPRs.assigned);
-}
-
-// Update the extension badge
-function updateBadge(text, color) {
-  chrome.action.setBadgeText({ text });
-  chrome.action.setBadgeBackgroundColor({ color });
-}
-
 // Listen for messages from popup or options
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'checkNow') {
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "checkNow") {
     checkForUpdates();
-    sendResponse({ status: 'checking' });
-  } else if (message.action === 'updateSettings') {
-    setupAlarm(message.checkInterval || DEFAULT_CHECK_INTERVAL);
-    sendResponse({ status: 'updated' });
-  } else if (message.action === 'markPRViewed') {
-    // Mark a PR as viewed
-    chrome.storage.local.get(['viewedPRs'], (result) => {
-      const viewedPRs = result.viewedPRs || {};
-      viewedPRs[message.prId] = new Date().toISOString();
-      chrome.storage.local.set({ viewedPRs }, () => {
-        // Recheck for updates to update badge
-        checkForUpdates();
-        sendResponse({ status: 'marked' });
-      });
-    });
-    return true;
+    sendResponse();
+  } else if (request.action === "markPRViewed") {
+    markPRViewed(request.prId);
+    sendResponse();
   }
-  return true;
 });
+
+// Mark a PR as viewed
+async function markPRViewed(prId) {
+  const { seenPRs = {} } = await chrome.storage.local.get(["seenPRs"]);
+  seenPRs[prId] = new Date().toISOString();
+  await chrome.storage.local.set({ seenPRs });
+  // Recheck updates to refresh badge
+  checkForUpdates();
+}

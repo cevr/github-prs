@@ -71,10 +71,19 @@ body {
   padding: 10px 15px;
   border-bottom: 1px solid #e1e4e8;
   cursor: pointer;
+  transition: background-color 0.2s ease;
 }
 
 .pr-item:hover {
   background-color: #f6f8fa;
+}
+
+.pr-item-viewed {
+  background-color: #f1f8ff;
+}
+
+.pr-item-viewed:hover {
+  background-color: #e8f4ff;
 }
 
 .pr-title {
@@ -140,4 +149,25 @@ body {
 .loading {
   text-align: center;
   padding: 30px 15px;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.status-dot.unseen {
+  background-color: #f85149;
+}
+
+.status-dot.seen {
+  background-color: #2da44e;
+}
+
+.pr-badge {
+  display: none;
 }
