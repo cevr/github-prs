@@ -2,17 +2,17 @@ import "./popup.css";
 import { createRoot } from "react-dom/client";
 import { startTransition } from "react";
 
-import { PopupApp } from "./popup";
+import { Popup } from "./popup";
 
+const root = createRoot(document.getElementById("root")!);
 function start() {
-  const root = createRoot(document.getElementById("root")!);
-  startTransition(() => {
-    root.render(<PopupApp />);
-  });
+  root.render(<Popup />);
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", start);
-} else {
-  start();
-}
+startTransition(() => {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
+});
