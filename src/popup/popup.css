@@ -165,7 +165,7 @@ body {
 }
 
 .status-dot.seen {
-  background-color: #2da44e;
+  background-color: #666;
 }
 
 .pr-badge {

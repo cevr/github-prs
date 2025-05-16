@@ -101,7 +101,7 @@ async function checkForUpdates() {
       chrome.action.setBadgeText({ text: totalPRs.toString() });
       chrome.action.setBadgeTextColor({ color: "#fff" });
       chrome.action.setBadgeBackgroundColor({
-        color: hasUpdates ? "#f00" : "#666",
+        color: hasUpdates ? "#f85149" : "#666",
       });
     } else {
       chrome.action.setBadgeText({ text: "" });
