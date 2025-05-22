@@ -99,7 +99,22 @@ async function checkForUpdates() {
 
     // Check for updates and update seen PRs
     let hasUpdates = false;
-    const allPRs = [...newPRs.created, ...newPRs.assigned];
+    // Use a Map to track unique PRs across all categories
+    const uniquePRs = new Map();
+
+    // Add created PRs first
+    createdPRs.forEach((pr) => {
+      uniquePRs.set(pr.id.toString(), pr);
+    });
+
+    // Add assigned/review-requested PRs, skipping duplicates
+    assignedPRs.forEach((pr) => {
+      if (!uniquePRs.has(pr.id.toString())) {
+        uniquePRs.set(pr.id.toString(), pr);
+      }
+    });
+
+    const allPRs = Array.from(uniquePRs.values());
     const updatedSeenPRs = { ...seenPRs };
 
     // Remove PRs that are no longer in the response
