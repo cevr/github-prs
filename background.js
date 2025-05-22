@@ -59,9 +59,25 @@ async function checkForUpdates() {
         fetchPRs(
           token,
           `https://api.github.com/search/issues?q=is:pr+is:open+review-requested:${username}`
-        )
+        ),
       ]).then(([assignedPRs, reviewRequestedPRs]) => {
-        return [...assignedPRs, ...reviewRequestedPRs];
+        // Use a Set to track unique PR IDs
+        const uniquePRs = new Map();
+
+        // Add assigned PRs first
+        assignedPRs.forEach((pr) => {
+          uniquePRs.set(pr.id.toString(), pr);
+        });
+
+        // Add review requested PRs, skipping duplicates
+        reviewRequestedPRs.forEach((pr) => {
+          if (!uniquePRs.has(pr.id.toString())) {
+            uniquePRs.set(pr.id.toString(), pr);
+          }
+        });
+
+        // Convert Map values back to array
+        return Array.from(uniquePRs.values());
       }),
     ]).catch(async (error) => {
       // If we get a 401, the token is expired
