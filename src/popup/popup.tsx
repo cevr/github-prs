@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import {
   queryOptions,
@@ -239,11 +239,7 @@ function ErrorFallback({
 }
 
 // Main PR list component
-function PRList({ activeTab }: { activeTab: string }) {
-  const [{ data: prsData }, { data: seenPRs }] = useSuspenseQueries({
-    queries: [prsQuery, seenPRsQuery],
-  });
-
+function PRList({ prsData, seenPRs }: { prsData: PRData; seenPRs: SeenPRs }) {
   // Mutation for marking PRs as seen
   const markSeenMutation = useMutation({
     mutationFn: async (prId: number) => {
@@ -282,19 +278,23 @@ function PRList({ activeTab }: { activeTab: string }) {
     },
   });
 
-  const currentPRs = prsData[activeTab as keyof PRData] || [];
+  // Combine and label all PRs
+  const allPRs = [
+    ...prsData.created.map(pr => ({ ...pr, type: 'CREATED' as const })),
+    ...prsData.assigned.map(pr => ({ ...pr, type: 'ASSIGNED' as const }))
+  ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
-  if (currentPRs.length === 0) {
+  if (allPRs.length === 0) {
     return (
       <div className="empty-state">
-        <p>No {activeTab === "created" ? "created" : "assigned"} PRs found.</p>
+        <p>No PRs found.</p>
       </div>
     );
   }
 
   return (
     <ul className="pr-list">
-      {currentPRs.map((pr) => {
+      {allPRs.map((pr) => {
         const prId = pr.id.toString();
         const isSeen = seenPRs[prId];
         const isUnseen = !isSeen || new Date(pr.updated_at) > new Date(isSeen);
@@ -311,7 +311,8 @@ function PRList({ activeTab }: { activeTab: string }) {
           >
             <div className="pr-title">
               <span className={`status-dot ${isUnseen ? "unseen" : "seen"}`} />
-              {pr.title}
+              <span className="pr-title-text">{pr.title}</span>
+              <span className="pr-type-label">{pr.type}</span>
             </div>
             <div className="pr-meta">
               <span className="pr-repo">
@@ -379,22 +380,11 @@ export function Popup() {
 
 export const PopupContent: React.FC = () => {
   useSuspenseQuery(setupQuery);
-  const [activeTab, setActiveTab] = useState("created");
 
-  // Get PR data and seen PRs to check for unseen items in tabs
+  // Get PR data and seen PRs to pass to groups
   const [{ data: prsData }, { data: seenPRs }] = useSuspenseQueries({
     queries: [prsQuery, seenPRsQuery],
   });
-
-  // Helper function to check if a tab has unseen PRs
-  const hasUnseenPRs = (tabType: 'created' | 'assigned'): boolean => {
-    const prs = prsData[tabType] || [];
-    return prs.some(pr => {
-      const prId = pr.id.toString();
-      const isSeen = seenPRs[prId];
-      return !isSeen || new Date(pr.updated_at) > new Date(isSeen);
-    });
-  };
 
   return (
     <>
@@ -429,28 +419,9 @@ export const PopupContent: React.FC = () => {
         </div>
       </div>
 
-      <div className="tab-container">
-        <div
-          className={activeTab === "created" ? "tab active" : "tab"}
-          onClick={() => setActiveTab("created")}
-        >
-          <span className="tab-text">Created by me</span>
-          {hasUnseenPRs('created') && (
-            <span className="tab-notification-dot" />
-          )}
-        </div>
-        <div
-          className={activeTab === "assigned" ? "tab active" : "tab"}
-          onClick={() => setActiveTab("assigned")}
-        >
-          <span className="tab-text">Assigned to me</span>
-          {hasUnseenPRs('assigned') && (
-            <span className="tab-notification-dot" />
-          )}
-        </div>
+      <div className="pr-container">
+        <PRList prsData={prsData} seenPRs={seenPRs} />
       </div>
-
-      <PRList activeTab={activeTab} />
     </>
   );
 };
