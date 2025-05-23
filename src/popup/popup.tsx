@@ -381,6 +381,21 @@ export const PopupContent: React.FC = () => {
   useSuspenseQuery(setupQuery);
   const [activeTab, setActiveTab] = useState("created");
 
+  // Get PR data and seen PRs to check for unseen items in tabs
+  const [{ data: prsData }, { data: seenPRs }] = useSuspenseQueries({
+    queries: [prsQuery, seenPRsQuery],
+  });
+
+  // Helper function to check if a tab has unseen PRs
+  const hasUnseenPRs = (tabType: 'created' | 'assigned'): boolean => {
+    const prs = prsData[tabType] || [];
+    return prs.some(pr => {
+      const prId = pr.id.toString();
+      const isSeen = seenPRs[prId];
+      return !isSeen || new Date(pr.updated_at) > new Date(isSeen);
+    });
+  };
+
   return (
     <>
       <div className="header">
@@ -419,13 +434,19 @@ export const PopupContent: React.FC = () => {
           className={activeTab === "created" ? "tab active" : "tab"}
           onClick={() => setActiveTab("created")}
         >
-          Created by me
+          <span className="tab-text">Created by me</span>
+          {hasUnseenPRs('created') && (
+            <span className="tab-notification-dot" />
+          )}
         </div>
         <div
           className={activeTab === "assigned" ? "tab active" : "tab"}
           onClick={() => setActiveTab("assigned")}
         >
-          Assigned to me
+          <span className="tab-text">Assigned to me</span>
+          {hasUnseenPRs('assigned') && (
+            <span className="tab-notification-dot" />
+          )}
         </div>
       </div>
 

@@ -52,11 +52,28 @@ body {
   flex: 1;
   text-align: center;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .tab.active {
   border-bottom-color: #0366d6;
   color: #0366d6;
+}
+
+.tab-text {
+  white-space: nowrap;
+}
+
+.tab-notification-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #f85149;
+  flex-shrink: 0;
 }
 
 .pr-list {
