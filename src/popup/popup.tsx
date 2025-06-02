@@ -20,6 +20,8 @@ interface PR {
     login: string;
     avatar_url: string;
   };
+  isApproved?: boolean;
+  lastUpdatedBy?: string;
 }
 
 interface PRData {
@@ -280,7 +282,10 @@ function PRList({ prsData, seenPRs }: { prsData: PRData; seenPRs: SeenPRs }) {
 
   // Combine and label all PRs
   const allPRs = [
-    ...prsData.created.map(pr => ({ ...pr, type: 'CREATED' as const })),
+    ...prsData.created.map(pr => ({
+      ...pr,
+      type: pr.isApproved ? 'APPROVED' as const : 'CREATED' as const
+    })),
     ...prsData.assigned.map(pr => ({ ...pr, type: 'ASSIGNED' as const }))
   ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
@@ -312,7 +317,9 @@ function PRList({ prsData, seenPRs }: { prsData: PRData; seenPRs: SeenPRs }) {
             <div className="pr-title">
               <span className={`status-dot ${isUnseen ? "unseen" : "seen"}`} />
               <span className="pr-title-text">{pr.title}</span>
-              <span className="pr-type-label">{pr.type}</span>
+              <span className={`pr-type-label ${pr.type === 'APPROVED' ? 'approved' : ''}`}>
+                {pr.type}
+              </span>
             </div>
             <div className="pr-meta">
               <span className="pr-repo">

@@ -98,6 +98,11 @@ body {
   margin-left: auto;
 }
 
+.pr-type-label.approved {
+  color: #fff;
+  background-color: #2ea44f;
+}
+
 .pr-meta {
   font-size: 12px;
   color: #586069;
