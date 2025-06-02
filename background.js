@@ -97,20 +97,22 @@ async function checkForUpdates() {
 
     // Fetch new PRs
     const [createdPRs, assignedPRs] = await Promise.all([
-      fetchPRsWithTimeline(
+      fetchPRsWithTimeline({
         token,
-        username,
-        `https://api.github.com/search/issues?q=is:pr+author:${username}+is:open`
-      ),
+        url: `https://api.github.com/search/issues?q=is:pr+author:${username}+is:open`,
+        includeApprovalStatus: true
+      }),
       Promise.all([
-        fetchPRs(
+        fetchPRsWithTimeline({
           token,
-          `https://api.github.com/search/issues?q=is:pr+is:open+assignee:${username}`
-        ),
-        fetchPRs(
+          url: `https://api.github.com/search/issues?q=is:pr+is:open+assignee:${username}`,
+          includeApprovalStatus: false
+        }),
+        fetchPRsWithTimeline({
           token,
-          `https://api.github.com/search/issues?q=is:pr+is:open+review-requested:${username}`
-        ),
+          url: `https://api.github.com/search/issues?q=is:pr+is:open+review-requested:${username}`,
+          includeApprovalStatus: false
+        }),
       ]).then(([assignedPRs, reviewRequestedPRs]) => {
         // Use a Set to track unique PR IDs
         const uniquePRs = new Map();
@@ -211,11 +213,11 @@ async function checkForUpdates() {
   }
 }
 
-// Fetch PRs with timeline data for created PRs
-async function fetchPRsWithTimeline(token, username, url) {
+// Fetch PRs with timeline data
+async function fetchPRsWithTimeline({ token, url, includeApprovalStatus = false }) {
   const prs = await fetchPRs(token, url);
 
-  // For created PRs, fetch timeline data to check approval status
+  // Fetch timeline data to check last updater and optionally approval status
   const prsWithTimeline = await Promise.all(
     prs.map(async (pr) => {
       const repoUrl = pr.repository_url;
@@ -232,7 +234,7 @@ async function fetchPRsWithTimeline(token, username, url) {
 
       return {
         ...pr,
-        isApproved,
+        ...(includeApprovalStatus && { isApproved }),
         lastUpdatedBy
       };
     })
