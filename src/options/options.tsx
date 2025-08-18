@@ -120,6 +120,9 @@ const OptionsPage: React.FC = () => {
   const showStatus = (message: string, type: string) => {
     setStatus({ message, type, visible: true });
   };
+  const clearStatus = () => {
+    setStatus({ message: "", type: "", visible: false });
+  };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -134,6 +137,7 @@ const OptionsPage: React.FC = () => {
       showStatus(newOptions.error.message, "error");
       return;
     }
+    clearStatus();
     saveSettings(newOptions.data);
   };
 
