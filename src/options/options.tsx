@@ -133,11 +133,11 @@ const OptionsPage: React.FC = () => {
       checkInterval: formData.get("checkInterval"),
       hideInactivePRs: formData.get("hideInactivePRs"),
     });
+    clearStatus();
     if (!newOptions.success) {
       showStatus(newOptions.error.message, "error");
       return;
     }
-    clearStatus();
     saveSettings(newOptions.data);
   };
 
