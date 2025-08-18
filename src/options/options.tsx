@@ -1,4 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React from "react";
+import {
+  queryOptions,
+  QueryClientProvider,
+  useSuspenseQuery,
+  QueryClient,
+} from "@tanstack/react-query";
+import { z } from "zod/v4";
+import { ErrorBoundary } from "react-error-boundary";
 
 interface StatusState {
   message: string;
@@ -6,92 +14,157 @@ interface StatusState {
   visible: boolean;
 }
 
-export const OptionsApp: React.FC = () => {
-  const [token, setToken] = useState('');
-  const [username, setUsername] = useState('');
-  const [checkInterval, setCheckInterval] = useState(15);
-  const [status, setStatus] = useState<StatusState>({ message: '', type: '', visible: false });
+const OptionsSchema = z.object({
+  token: z.string().min(1).default(""),
+  username: z.string().min(1).default(""),
+  checkInterval: z.coerce.number().min(5).max(60).default(15),
+  hideInactivePRs: z.coerce.boolean().default(true),
+});
 
-  // Load saved settings on component mount
-  useEffect(() => {
-    // @ts-ignore - Chrome API
-    chrome.storage.sync.get(['token', 'username', 'checkInterval'], (result) => {
-      if (result.token) {
-        setToken(result.token);
-      }
+type Options = z.infer<typeof OptionsSchema>;
 
-      if (result.username) {
-        setUsername(result.username);
-      }
+const OptionsQuery = queryOptions({
+  queryKey: ["options"],
+  queryFn: async () => {
+    const { token, username, checkInterval, hideInactivePRs } =
+      await chrome.storage.sync.get([
+        "token",
+        "username",
+        "checkInterval",
+        "hideInactivePRs",
+      ]);
 
-      if (result.checkInterval) {
-        setCheckInterval(result.checkInterval);
-      }
+    const parsed = OptionsSchema.safeParse({
+      token,
+      username,
+      checkInterval,
+      hideInactivePRs,
     });
-  }, []);
+    if (!parsed.success) {
+      throw new Error("Invalid options");
+    }
+
+    return parsed.data;
+  },
+});
+
+const queryClient = new QueryClient();
+
+function ErrorFallback({ error }: { error: Error }) {
+  return <div>Error: {error.message}</div>;
+}
+
+export function Options() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ErrorBoundary FallbackComponent={ErrorFallback}>
+        <React.Suspense fallback={<div>Loading...</div>}>
+          <OptionsPage />
+        </React.Suspense>
+      </ErrorBoundary>
+    </QueryClientProvider>
+  );
+}
+
+const OptionsPage: React.FC = () => {
+  const { data: options } = useSuspenseQuery(OptionsQuery);
+  const [status, setStatus] = React.useState<StatusState>({
+    message: "",
+    type: "",
+    visible: false,
+  });
 
   // Save settings
-  const saveSettings = () => {
+  const saveSettings = (newOptions: Options) => {
     // Validate inputs
-    if (!token) {
-      showStatus('Please enter your GitHub Personal Access Token.', 'error');
+    if (!newOptions.token) {
+      showStatus("Please enter your GitHub Personal Access Token.", "error");
       return;
     }
 
-    if (!username) {
-      showStatus('Please enter your GitHub username.', 'error');
+    if (!newOptions.username) {
+      showStatus("Please enter your GitHub username.", "error");
       return;
     }
 
     // Ensure interval is at least 5 minutes
-    const interval = Math.max(5, checkInterval);
+    const interval = Math.max(5, newOptions.checkInterval);
 
     // Save to storage
-    // @ts-ignore - Chrome API
-    chrome.storage.sync.set({
-      token,
-      username,
-      checkInterval: interval
-    }, () => {
-      // Show success message
-      showStatus('Settings saved successfully!', 'success');
+    chrome.storage.sync.set(
+      {
+        token: newOptions.token,
+        username: newOptions.username,
+        checkInterval: interval,
+        hideInactivePRs: newOptions.hideInactivePRs,
+      },
+      () => {
+        // Show success message
+        showStatus("Settings saved successfully!", "success");
 
-      // Update check interval in background script
-      // @ts-ignore - Chrome API
-      chrome.runtime.sendMessage({
-        action: 'updateSettings',
-        checkInterval: interval
-      });
+        // Update check interval in background script
+        chrome.runtime.sendMessage({
+          action: "updateSettings",
+          checkInterval: interval,
+        });
 
-      // Trigger an immediate check
-      // @ts-ignore - Chrome API
-      chrome.runtime.sendMessage({
-        action: 'checkNow'
-      });
-    });
+        // Trigger an immediate check
+        chrome.runtime.sendMessage({
+          action: "checkNow",
+        });
+      }
+    );
   };
 
   // Helper to show status messages
   const showStatus = (message: string, type: string) => {
     setStatus({ message, type, visible: true });
+  };
 
-    // Hide status after 3 seconds
-    setTimeout(() => {
-      setStatus(prev => ({ ...prev, visible: false }));
-    }, 3000);
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const newOptions = OptionsSchema.safeParse({
+      token: formData.get("token"),
+      username: formData.get("username"),
+      checkInterval: formData.get("checkInterval"),
+      hideInactivePRs: formData.get("hideInactivePRs"),
+    });
+    if (!newOptions.success) {
+      showStatus(newOptions.error.message, "error");
+      return;
+    }
+    saveSettings(newOptions.data);
   };
 
   return (
-    <>
+    <form onSubmit={handleSubmit}>
       <h1>GitHub PR Tracker Settings</h1>
 
       <div className="token-section">
         <h2>How to create a GitHub Personal Access Token:</h2>
         <ol>
-          <li>Go to <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer">GitHub Personal Access Tokens</a></li>
-          <li>Click on "Generate new token" and select "Generate new token (classic)"</li>
-          <li>Give your token a descriptive name (e.g., "PR Tracker Extension")</li>
-          <li>Select the following scopes: <strong>repo</strong> (to access repositories)</li>
+          <li>
+            Go to{" "}
+            <a
+              href="https://github.com/settings/tokens"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub Personal Access Tokens
+            </a>
+          </li>
+          <li>
+            Click on "Generate new token" and select "Generate new token
+            (classic)"
+          </li>
+          <li>
+            Give your token a descriptive name (e.g., "PR Tracker Extension")
+          </li>
+          <li>
+            Select the following scopes: <strong>repo</strong> (to access
+            repositories)
+          </li>
           <li>Click "Generate token" at the bottom of the page</li>
           <li>Copy the generated token and paste it below</li>
         </ol>
@@ -103,10 +176,12 @@ export const OptionsApp: React.FC = () => {
           type="password"
           id="token"
           placeholder="ghp_xxxxxxxxxxxxxxxx"
-          value={token}
-          onChange={e => setToken(e.target.value)}
+          name="token"
+          defaultValue={options.token}
         />
-        <div className="help-text">Your token is stored locally and only used to access GitHub API.</div>
+        <div className="help-text">
+          Your token is stored locally and only used to access GitHub API.
+        </div>
       </div>
 
       <div className="form-group">
@@ -115,8 +190,8 @@ export const OptionsApp: React.FC = () => {
           type="text"
           id="username"
           placeholder="yourusername"
-          value={username}
-          onChange={e => setUsername(e.target.value)}
+          name="username"
+          defaultValue={options.username}
         />
       </div>
 
@@ -128,21 +203,36 @@ export const OptionsApp: React.FC = () => {
           min="5"
           max="60"
           placeholder="15"
-          value={checkInterval}
-          onChange={e => setCheckInterval(parseInt(e.target.value) || 15)}
+          name="checkInterval"
+          defaultValue={options.checkInterval}
         />
-        <div className="help-text">How often to check for PR updates (minimum 5 minutes).</div>
+        <div className="help-text">
+          How often to check for PR updates (minimum 5 minutes).
+        </div>
+      </div>
+
+      <div className="form-group">
+        <label>
+          <input
+            type="checkbox"
+            name="hideInactivePRs"
+            defaultChecked={options.hideInactivePRs}
+          />
+          Hide PRs with no activity for over a month
+        </label>
+        <div className="help-text">
+          PRs that haven't been updated in 30+ days will be hidden from the
+          list.
+        </div>
       </div>
 
       {status.visible && (
-        <div className={`status ${status.type}`}>
-          {status.message}
-        </div>
+        <div className={`status ${status.type}`}>{status.message}</div>
       )}
 
       <div className="button-group">
-        <button onClick={saveSettings}>Save Settings</button>
+        <button type="submit">Save Settings</button>
       </div>
-    </>
+    </form>
   );
 };

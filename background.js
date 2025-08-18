@@ -86,9 +86,10 @@ async function fetchPRTimeline(token, repoOwner, repoName, prNumber) {
 // Check for PR updates
 async function checkForUpdates() {
   try {
-    const { token, username } = await chrome.storage.sync.get([
+    const { token, username, hideInactivePRs } = await chrome.storage.sync.get([
       "token",
       "username",
+      "hideInactivePRs",
     ]);
     if (!token || !username) return;
 
@@ -145,9 +146,19 @@ async function checkForUpdates() {
       throw error;
     });
 
+    // Filter out inactive PRs if the setting is enabled
+    const filterInactivePRs = (prs) => {
+      if (!hideInactivePRs) return prs;
+      
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      
+      return prs.filter(pr => new Date(pr.updated_at) >= oneMonthAgo);
+    };
+
     const newPRs = {
-      created: createdPRs,
-      assigned: assignedPRs,
+      created: filterInactivePRs(createdPRs),
+      assigned: filterInactivePRs(assignedPRs),
     };
 
     // Check for updates and update seen PRs (but ignore self-updates)
@@ -272,7 +283,7 @@ async function fetchPRs(token, url) {
 }
 
 // Listen for messages from popup or options
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.action === "checkNow") {
     checkForUpdates();
     sendResponse();

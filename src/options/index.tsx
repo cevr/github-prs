@@ -1,10 +1,10 @@
 import { createRoot } from "react-dom/client";
-import { OptionsApp } from "./options";
+import { Options } from "./options";
 import "./options.css";
 
 function start() {
   const root = createRoot(document.getElementById("root")!);
-  root.render(<OptionsApp />);
+  root.render(<Options />);
 }
 
 if (document.readyState === "loading") {
