@@ -202,7 +202,7 @@ async function checkForUpdates() {
     }
 
     // Update badge
-    const totalPRs = allPRs.length;
+    const totalPRs = newPRs.created.length + newPRs.assigned.length;
     if (totalPRs > 0) {
       chrome.action.setBadgeText({ text: totalPRs.toString() });
       chrome.action.setBadgeTextColor({ color: "#fff" });
