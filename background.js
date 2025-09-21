@@ -58,27 +58,32 @@ async function fetchPRTimeline(token, repoOwner, repoName, prNumber) {
       const event = timeline[i];
 
       // Track the most recent event that would cause an update
-      if (!lastUpdatedBy && event.actor &&
-          (event.event === 'reviewed' || event.event === 'committed' ||
-           event.event === 'commented' || event.event === 'synchronized')) {
+      if (
+        !lastUpdatedBy &&
+        event.actor &&
+        (event.event === "reviewed" ||
+          event.event === "committed" ||
+          event.event === "commented" ||
+          event.event === "synchronized")
+      ) {
         lastUpdatedBy = event.actor.login;
       }
 
       // Check for approval
-      if (event.event === 'reviewed' && event.state === 'approved') {
+      if (event.event === "reviewed" && event.state === "approved") {
         isApproved = true;
         break;
       }
 
       // If we find a newer review that's not approved, it's not approved
-      if (event.event === 'reviewed' && event.state !== 'approved') {
+      if (event.event === "reviewed" && event.state !== "approved") {
         break;
       }
     }
 
     return { isApproved, lastUpdatedBy };
   } catch (error) {
-    console.error('Error fetching timeline:', error);
+    console.error("Error fetching timeline:", error);
     return { isApproved: false, lastUpdatedBy: null };
   }
 }
@@ -101,18 +106,18 @@ async function checkForUpdates() {
       fetchPRsWithTimeline({
         token,
         url: `https://api.github.com/search/issues?q=is:pr+author:${username}+is:open`,
-        includeApprovalStatus: true
+        includeApprovalStatus: true,
       }),
       Promise.all([
         fetchPRsWithTimeline({
           token,
           url: `https://api.github.com/search/issues?q=is:pr+is:open+assignee:${username}`,
-          includeApprovalStatus: false
+          includeApprovalStatus: false,
         }),
         fetchPRsWithTimeline({
           token,
           url: `https://api.github.com/search/issues?q=is:pr+is:open+review-requested:${username}`,
-          includeApprovalStatus: false
+          includeApprovalStatus: false,
         }),
       ]).then(([assignedPRs, reviewRequestedPRs]) => {
         // Use a Set to track unique PR IDs
@@ -149,11 +154,11 @@ async function checkForUpdates() {
     // Filter out inactive PRs if the setting is enabled
     const filterInactivePRs = (prs) => {
       if (!hideInactivePRs) return prs;
-      
+
       const oneMonthAgo = new Date();
       oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-      
-      return prs.filter(pr => new Date(pr.updated_at) >= oneMonthAgo);
+
+      return prs.filter((pr) => new Date(pr.updated_at) >= oneMonthAgo);
     };
 
     const newPRs = {
@@ -162,7 +167,7 @@ async function checkForUpdates() {
     };
 
     // Check for updates and update seen PRs (but ignore self-updates)
-    let hasUpdates = false;
+    let hasUnseenUpdates = false;
     // Use a Map to track unique PRs across all categories
     const uniquePRs = new Map();
 
@@ -193,11 +198,16 @@ async function checkForUpdates() {
       const prId = pr.id.toString();
       const lastSeen = updatedSeenPRs[prId];
 
-      if (!lastSeen || new Date(pr.updated_at) > new Date(lastSeen)) {
-        // Only consider it an update if it wasn't caused by the user themselves
-        if (!pr.lastUpdatedBy || pr.lastUpdatedBy !== username) {
-          hasUpdates = true;
-        }
+      // Mark as unseen if:
+      // 1. PR has never been seen before, OR
+      // 2. PR was updated after last seen (but ignore self-updates)
+      if (
+        !lastSeen ||
+        (new Date(pr.updated_at) > new Date(lastSeen) &&
+          pr.lastUpdatedBy !== username)
+      ) {
+        hasUnseenUpdates = true;
+        break;
       }
     }
 
@@ -207,7 +217,7 @@ async function checkForUpdates() {
       chrome.action.setBadgeText({ text: totalPRs.toString() });
       chrome.action.setBadgeTextColor({ color: "#fff" });
       chrome.action.setBadgeBackgroundColor({
-        color: hasUpdates ? "#f85149" : "#666",
+        color: hasUnseenUpdates ? "#f85149" : "#666",
       });
     } else {
       chrome.action.setBadgeText({ text: "" });
@@ -225,14 +235,18 @@ async function checkForUpdates() {
 }
 
 // Fetch PRs with timeline data
-async function fetchPRsWithTimeline({ token, url, includeApprovalStatus = false }) {
+async function fetchPRsWithTimeline({
+  token,
+  url,
+  includeApprovalStatus = false,
+}) {
   const prs = await fetchPRs(token, url);
 
   // Fetch timeline data to check last updater and optionally approval status
   const prsWithTimeline = await Promise.all(
     prs.map(async (pr) => {
       const repoUrl = pr.repository_url;
-      const repoParts = repoUrl.split('/');
+      const repoParts = repoUrl.split("/");
       const repoOwner = repoParts[repoParts.length - 2];
       const repoName = repoParts[repoParts.length - 1];
 
@@ -246,7 +260,7 @@ async function fetchPRsWithTimeline({ token, url, includeApprovalStatus = false 
       return {
         ...pr,
         ...(includeApprovalStatus && { isApproved }),
-        lastUpdatedBy
+        lastUpdatedBy,
       };
     })
   );
