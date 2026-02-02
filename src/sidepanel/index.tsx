@@ -1,6 +1,6 @@
 import "../app.css"
 import { render } from "solid-js/web"
-import { Popup } from "./popup"
+import { SidePanel } from "./sidepanel"
 
 const root = document.getElementById("root")
-if (root) render(() => <Popup />, root)
+if (root) render(() => <SidePanel />, root)

@@ -2,6 +2,8 @@ import type { PR, PRData, SeenPRs } from "./types"
 
 const DEFAULT_CHECK_INTERVAL = 15
 
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.sync.get(["token", "username", "checkInterval"], (result) => {
     if (!result.checkInterval) {

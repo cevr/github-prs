@@ -3,15 +3,17 @@
   "name": "GitHub PR Tracker",
   "version": "1.0",
   "description": "Track your active GitHub PRs with notifications",
-  "permissions": ["storage", "alarms"],
+  "permissions": ["storage", "alarms", "sidePanel"],
   "host_permissions": ["https://api.github.com/*"],
   "action": {
-    "default_popup": "dist/popup/popup.html",
     "default_icon": {
       "16": "icon.png",
       "48": "icon.png",
       "128": "icon.png"
     }
+  },
+  "side_panel": {
+    "default_path": "dist/sidepanel/sidepanel.html"
   },
   "background": {
     "service_worker": "dist/background.js",
