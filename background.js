@@ -1,41 +1,38 @@
-// GitHub API endpoints
-const GITHUB_API_BASE = "https://api.github.com";
-
 // Default check interval (15 minutes)
-const DEFAULT_CHECK_INTERVAL = 15;
+const DEFAULT_CHECK_INTERVAL = 15
 
 // Initialize the extension
 chrome.runtime.onInstalled.addListener(() => {
   // Set default settings
   chrome.storage.sync.get(["token", "username", "checkInterval"], (result) => {
     if (!result.checkInterval) {
-      chrome.storage.sync.set({ checkInterval: DEFAULT_CHECK_INTERVAL });
+      chrome.storage.sync.set({ checkInterval: DEFAULT_CHECK_INTERVAL })
     }
 
     // Setup alarm for periodic checks
-    setupAlarm(result.checkInterval || DEFAULT_CHECK_INTERVAL);
-  });
-});
+    setupAlarm(result.checkInterval || DEFAULT_CHECK_INTERVAL)
+  })
+})
 
 // Listen for alarm
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "checkPRs") {
-    checkForUpdates();
+    checkForUpdates()
   }
-});
+})
 
 // Setup the alarm for periodic checking
 function setupAlarm(interval) {
   chrome.alarms.clear("checkPRs", () => {
     chrome.alarms.create("checkPRs", {
       periodInMinutes: parseInt(interval),
-    });
-  });
+    })
+  })
 }
 
 // Fetch timeline data for a PR to check approval status and last updater
 async function fetchPRTimeline(token, repoOwner, repoName, prNumber) {
-  const timelineUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/pulls/${prNumber}/timeline`;
+  const timelineUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/pulls/${prNumber}/timeline`
 
   try {
     const response = await fetch(timelineUrl, {
@@ -43,19 +40,19 @@ async function fetchPRTimeline(token, repoOwner, repoName, prNumber) {
         Authorization: `token ${token}`,
         Accept: "application/vnd.github.v3+json",
       },
-    });
+    })
 
     if (!response.ok) {
-      return { isApproved: false, lastUpdatedBy: null };
+      return { isApproved: false, lastUpdatedBy: null }
     }
 
-    const timeline = await response.json();
-    let isApproved = false;
-    let lastUpdatedBy = null;
+    const timeline = await response.json()
+    let isApproved = false
+    let lastUpdatedBy = null
 
     // Check for the most recent review approval and get last updater
     for (let i = timeline.length - 1; i >= 0; i--) {
-      const event = timeline[i];
+      const event = timeline[i]
 
       // Track the most recent event that would cause an update
       if (
@@ -66,25 +63,25 @@ async function fetchPRTimeline(token, repoOwner, repoName, prNumber) {
           event.event === "commented" ||
           event.event === "synchronized")
       ) {
-        lastUpdatedBy = event.actor.login;
+        lastUpdatedBy = event.actor.login
       }
 
       // Check for approval
       if (event.event === "reviewed" && event.state === "approved") {
-        isApproved = true;
-        break;
+        isApproved = true
+        break
       }
 
       // If we find a newer review that's not approved, it's not approved
       if (event.event === "reviewed" && event.state !== "approved") {
-        break;
+        break
       }
     }
 
-    return { isApproved, lastUpdatedBy };
+    return { isApproved, lastUpdatedBy }
   } catch (error) {
-    console.error("Error fetching timeline:", error);
-    return { isApproved: false, lastUpdatedBy: null };
+    console.error("Error fetching timeline:", error)
+    return { isApproved: false, lastUpdatedBy: null }
   }
 }
 
@@ -95,11 +92,11 @@ async function checkForUpdates() {
       "token",
       "username",
       "hideInactivePRs",
-    ]);
-    if (!token || !username) return;
+    ])
+    if (!token || !username) return
 
     // Get current seen PRs
-    const { seenPRs = {} } = await chrome.storage.local.get(["seenPRs"]);
+    const { seenPRs = {} } = await chrome.storage.local.get(["seenPRs"])
 
     // Fetch new PRs
     const [createdPRs, assignedPRs] = await Promise.all([
@@ -121,151 +118,146 @@ async function checkForUpdates() {
         }),
       ]).then(([assignedPRs, reviewRequestedPRs]) => {
         // Use a Set to track unique PR IDs
-        const uniquePRs = new Map();
+        const uniquePRs = new Map()
 
         // Add assigned PRs first
         assignedPRs.forEach((pr) => {
-          uniquePRs.set(pr.id.toString(), pr);
-        });
+          uniquePRs.set(pr.id.toString(), pr)
+        })
 
         // Add review requested PRs, skipping duplicates
         reviewRequestedPRs.forEach((pr) => {
           if (!uniquePRs.has(pr.id.toString())) {
-            uniquePRs.set(pr.id.toString(), pr);
+            uniquePRs.set(pr.id.toString(), pr)
           }
-        });
+        })
 
         // Convert Map values back to array
-        return Array.from(uniquePRs.values());
+        return Array.from(uniquePRs.values())
       }),
     ]).catch(async (error) => {
       // If we get a 401, the token is expired
       if (error.message.includes("401")) {
         // Clear the token and username
-        await chrome.storage.sync.remove(["token", "username"]);
+        await chrome.storage.sync.remove(["token", "username"])
         // Clear the PR data
-        await chrome.storage.local.remove(["previousPRs", "seenPRs"]);
+        await chrome.storage.local.remove(["previousPRs", "seenPRs"])
         // Notify the popup to show setup needed
-        await chrome.runtime.sendMessage({ action: "setupNeeded" });
+        await chrome.runtime.sendMessage({ action: "setupNeeded" })
       }
-      throw error;
-    });
+      throw error
+    })
 
     // Filter out inactive PRs if the setting is enabled
     const filterInactivePRs = (prs) => {
-      if (!hideInactivePRs) return prs;
+      if (!hideInactivePRs) return prs
 
-      const oneMonthAgo = new Date();
-      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      const oneMonthAgo = new Date()
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
 
-      return prs.filter((pr) => new Date(pr.updated_at) >= oneMonthAgo);
-    };
+      return prs.filter((pr) => new Date(pr.updated_at) >= oneMonthAgo)
+    }
 
     const newPRs = {
       created: filterInactivePRs(createdPRs),
       assigned: filterInactivePRs(assignedPRs),
-    };
+    }
 
     // Check for updates and update seen PRs (but ignore self-updates)
-    let hasUnseenUpdates = false;
+    let hasUnseenUpdates = false
     // Use a Map to track unique PRs across all categories
-    const uniquePRs = new Map();
+    const uniquePRs = new Map()
 
     // Add created PRs first
     createdPRs.forEach((pr) => {
-      uniquePRs.set(pr.id.toString(), pr);
-    });
+      uniquePRs.set(pr.id.toString(), pr)
+    })
 
     // Add assigned/review-requested PRs, skipping duplicates
     assignedPRs.forEach((pr) => {
       if (!uniquePRs.has(pr.id.toString())) {
-        uniquePRs.set(pr.id.toString(), pr);
+        uniquePRs.set(pr.id.toString(), pr)
       }
-    });
+    })
 
-    const allPRs = Array.from(uniquePRs.values());
-    const updatedSeenPRs = { ...seenPRs };
+    const allPRs = Array.from(uniquePRs.values())
+    const updatedSeenPRs = { ...seenPRs }
 
     // Remove PRs that are no longer in the response
     Object.keys(updatedSeenPRs).forEach((prId) => {
       if (!allPRs.find((pr) => pr.id.toString() === prId)) {
-        delete updatedSeenPRs[prId];
+        delete updatedSeenPRs[prId]
       }
-    });
+    })
 
     // Check for new or updated PRs (but ignore updates caused by the user themselves)
     for (const pr of allPRs) {
-      const prId = pr.id.toString();
-      const lastSeen = updatedSeenPRs[prId];
+      const prId = pr.id.toString()
+      const lastSeen = updatedSeenPRs[prId]
 
       // Mark as unseen if:
       // 1. PR has never been seen before, OR
       // 2. PR was updated after last seen (but ignore self-updates)
       if (
         !lastSeen ||
-        (new Date(pr.updated_at) > new Date(lastSeen) &&
-          pr.lastUpdatedBy !== username)
+        (new Date(pr.updated_at) > new Date(lastSeen) && pr.lastUpdatedBy !== username)
       ) {
-        hasUnseenUpdates = true;
-        break;
+        hasUnseenUpdates = true
+        break
       }
     }
 
     // Update badge
-    const totalPRs = newPRs.created.length + newPRs.assigned.length;
+    const totalPRs = newPRs.created.length + newPRs.assigned.length
     if (totalPRs > 0) {
-      chrome.action.setBadgeText({ text: totalPRs.toString() });
-      chrome.action.setBadgeTextColor({ color: "#fff" });
+      chrome.action.setBadgeText({ text: totalPRs.toString() })
+      chrome.action.setBadgeTextColor({ color: "#fff" })
       chrome.action.setBadgeBackgroundColor({
         color: hasUnseenUpdates ? "#f85149" : "#666",
-      });
+      })
     } else {
-      chrome.action.setBadgeText({ text: "" });
+      chrome.action.setBadgeText({ text: "" })
     }
 
     // Store new PRs and seen state
     await chrome.storage.local.set({
       previousPRs: newPRs,
       seenPRs: updatedSeenPRs,
-    });
-    await chrome.runtime.sendMessage({ action: "prsUpdated" });
+    })
+    await chrome.runtime.sendMessage({ action: "prsUpdated" })
   } catch (error) {
-    console.error("Error checking for updates:", error);
+    console.error("Error checking for updates:", error)
   }
 }
 
 // Fetch PRs with timeline data
-async function fetchPRsWithTimeline({
-  token,
-  url,
-  includeApprovalStatus = false,
-}) {
-  const prs = await fetchPRs(token, url);
+async function fetchPRsWithTimeline({ token, url, includeApprovalStatus = false }) {
+  const prs = await fetchPRs(token, url)
 
   // Fetch timeline data to check last updater and optionally approval status
   const prsWithTimeline = await Promise.all(
     prs.map(async (pr) => {
-      const repoUrl = pr.repository_url;
-      const repoParts = repoUrl.split("/");
-      const repoOwner = repoParts[repoParts.length - 2];
-      const repoName = repoParts[repoParts.length - 1];
+      const repoUrl = pr.repository_url
+      const repoParts = repoUrl.split("/")
+      const repoOwner = repoParts[repoParts.length - 2]
+      const repoName = repoParts[repoParts.length - 1]
 
       const { isApproved, lastUpdatedBy } = await fetchPRTimeline(
         token,
         repoOwner,
         repoName,
-        pr.number
-      );
+        pr.number,
+      )
 
       return {
         ...pr,
         ...(includeApprovalStatus && { isApproved }),
         lastUpdatedBy,
-      };
-    })
-  );
+      }
+    }),
+  )
 
-  return prsWithTimeline;
+  return prsWithTimeline
 }
 
 // Fetch PRs from GitHub API
@@ -275,13 +267,13 @@ async function fetchPRs(token, url) {
       Authorization: `token ${token}`,
       Accept: "application/vnd.github.v3+json",
     },
-  });
+  })
 
   if (!response.ok) {
-    throw new Error(`GitHub API error: ${response.status}`);
+    throw new Error(`GitHub API error: ${response.status}`)
   }
 
-  const data = await response.json();
+  const data = await response.json()
   return data.items.map((item) => ({
     id: item.id,
     number: item.number,
@@ -293,25 +285,25 @@ async function fetchPRs(token, url) {
       login: item.user.login,
       avatar_url: item.user.avatar_url,
     },
-  }));
+  }))
 }
 
 // Listen for messages from popup or options
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.action === "checkNow") {
-    checkForUpdates();
-    sendResponse();
+    checkForUpdates()
+    sendResponse()
   } else if (request.action === "markPRViewed") {
-    markPRViewed(request.prId);
-    sendResponse();
+    markPRViewed(request.prId)
+    sendResponse()
   }
-});
+})
 
 // Mark a PR as viewed
 async function markPRViewed(prId) {
-  const { seenPRs = {} } = await chrome.storage.local.get(["seenPRs"]);
-  seenPRs[prId] = new Date().toISOString();
-  await chrome.storage.local.set({ seenPRs });
+  const { seenPRs = {} } = await chrome.storage.local.get(["seenPRs"])
+  seenPRs[prId] = new Date().toISOString()
+  await chrome.storage.local.set({ seenPRs })
   // Recheck updates to refresh badge
-  checkForUpdates();
+  checkForUpdates()
 }

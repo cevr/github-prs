@@ -1,16 +1,10 @@
-import {
-  createResource,
-  createSignal,
-  ErrorBoundary,
-  Suspense,
-  Show,
-} from "solid-js";
+import { createResource, createSignal, ErrorBoundary, Suspense, Show } from "solid-js"
 
 interface OptionsData {
-  token: string;
-  username: string;
-  checkInterval: number;
-  hideInactivePRs: boolean;
+  token: string
+  username: string
+  checkInterval: number
+  hideInactivePRs: boolean
 }
 
 async function fetchOptions(): Promise<OptionsData> {
@@ -19,64 +13,61 @@ async function fetchOptions(): Promise<OptionsData> {
     "username",
     "checkInterval",
     "hideInactivePRs",
-  ]);
+  ])
   return {
     token: (result.token as string) ?? "",
     username: (result.username as string) ?? "",
     checkInterval: Number(result.checkInterval) || 15,
     hideInactivePRs: result.hideInactivePRs !== false,
-  };
+  }
 }
 
 function OptionsPage() {
-  const [options] = createResource(fetchOptions);
+  const [options] = createResource(fetchOptions)
   const [status, setStatus] = createSignal<{
-    message: string;
-    type: string;
-    visible: boolean;
-  }>({ message: "", type: "", visible: false });
+    message: string
+    type: string
+    visible: boolean
+  }>({ message: "", type: "", visible: false })
 
   const showStatus = (message: string, type: string) => {
-    setStatus({ message, type, visible: true });
-  };
+    setStatus({ message, type, visible: true })
+  }
 
   const clearStatus = () => {
-    setStatus({ message: "", type: "", visible: false });
-  };
+    setStatus({ message: "", type: "", visible: false })
+  }
 
   const handleSubmit = (e: SubmitEvent) => {
-    e.preventDefault();
-    clearStatus();
+    e.preventDefault()
+    clearStatus()
 
-    const form = e.currentTarget as HTMLFormElement;
-    const formData = new FormData(form);
+    const form = e.currentTarget as HTMLFormElement
+    const formData = new FormData(form)
 
-    const token = (formData.get("token") as string)?.trim();
-    const username = (formData.get("username") as string)?.trim();
-    const checkInterval = Math.min(60, Math.max(5, Number(formData.get("checkInterval")) || 15));
-    const hideInactivePRs = formData.get("hideInactivePRs") === "on";
+    const token = (formData.get("token") as string)?.trim()
+    const username = (formData.get("username") as string)?.trim()
+    const checkInterval = Math.min(60, Math.max(5, Number(formData.get("checkInterval")) || 15))
+    const hideInactivePRs = formData.get("hideInactivePRs") === "on"
 
     if (!token) {
-      showStatus("Please enter your GitHub Personal Access Token.", "error");
-      return;
+      showStatus("Please enter your GitHub Personal Access Token.", "error")
+      return
     }
     if (!username) {
-      showStatus("Please enter your GitHub username.", "error");
-      return;
+      showStatus("Please enter your GitHub username.", "error")
+      return
     }
 
-    chrome.storage.sync.set(
-      { token, username, checkInterval, hideInactivePRs },
-      () => {
-        showStatus("Settings saved successfully!", "success");
-        chrome.runtime.sendMessage({
-          action: "updateSettings",
-          checkInterval,
-        });
-        chrome.runtime.sendMessage({ action: "checkNow" });
-      }
-    );
-  };
+    chrome.storage.sync.set({ token, username, checkInterval, hideInactivePRs }, () => {
+      showStatus("Settings saved successfully!", "success")
+      chrome.runtime.sendMessage({
+        action: "updateSettings",
+        checkInterval,
+      })
+      chrome.runtime.sendMessage({ action: "checkNow" })
+    })
+  }
 
   return (
     <Show when={options()} fallback={<div>Loading...</div>}>
@@ -97,17 +88,10 @@ function OptionsPage() {
                   GitHub Personal Access Tokens
                 </a>
               </li>
+              <li>Click on "Generate new token" and select "Generate new token (classic)"</li>
+              <li>Give your token a descriptive name (e.g., "PR Tracker Extension")</li>
               <li>
-                Click on "Generate new token" and select "Generate new token
-                (classic)"
-              </li>
-              <li>
-                Give your token a descriptive name (e.g., "PR Tracker
-                Extension")
-              </li>
-              <li>
-                Select the following scopes: <strong>repo</strong> (to access
-                repositories)
+                Select the following scopes: <strong>repo</strong> (to access repositories)
               </li>
               <li>Click "Generate token" at the bottom of the page</li>
               <li>Copy the generated token and paste it below</li>
@@ -150,23 +134,16 @@ function OptionsPage() {
               name="checkInterval"
               value={opts().checkInterval}
             />
-            <div class="help-text">
-              How often to check for PR updates (minimum 5 minutes).
-            </div>
+            <div class="help-text">How often to check for PR updates (minimum 5 minutes).</div>
           </div>
 
           <div class="form-group">
             <label>
-              <input
-                type="checkbox"
-                name="hideInactivePRs"
-                checked={opts().hideInactivePRs}
-              />
+              <input type="checkbox" name="hideInactivePRs" checked={opts().hideInactivePRs} />
               Hide PRs with no activity for over a month
             </label>
             <div class="help-text">
-              PRs that haven't been updated in 30+ days will be hidden from
-              the list.
+              PRs that haven't been updated in 30+ days will be hidden from the list.
             </div>
           </div>
 
@@ -180,7 +157,7 @@ function OptionsPage() {
         </form>
       )}
     </Show>
-  );
+  )
 }
 
 export function Options() {
@@ -190,5 +167,5 @@ export function Options() {
         <OptionsPage />
       </Suspense>
     </ErrorBoundary>
-  );
+  )
 }

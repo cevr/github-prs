@@ -5,7 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt --write .",
+    "fmt:check": "oxfmt --check .",
+    "gate": "concurrently -n type,lint,fmt,build -c blue,yellow,magenta,green \"bun run typecheck\" \"bun run lint\" \"bun run fmt:check\" \"bun run build\"",
+    "prepare": "lefthook install"
   },
   "dependencies": {
     "solid-js": "^1.9.5"
@@ -13,6 +20,10 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
     "@types/chrome": "^0.1.36",
+    "concurrently": "^9.2.1",
+    "lefthook": "^1.12.0",
+    "oxfmt": "^0.27.0",
+    "oxlint": "^1.42.0",
     "tailwindcss": "^4.1.18",
     "vite": "^8.0.0-beta.11",
     "vite-plugin-solid": "^2.11.10"
