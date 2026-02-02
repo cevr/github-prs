@@ -1,14 +1,7 @@
-import { createRoot } from "react-dom/client";
-import { Options } from "./options";
 import "./options.css";
+import { render } from "solid-js/web";
+import { Options } from "./options";
 
-function start() {
-  const root = createRoot(document.getElementById("root")!);
-  root.render(<Options />);
-}
+const root = document.getElementById("root")!;
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", start);
-} else {
-  start();
-}
+render(() => <Options />, root);

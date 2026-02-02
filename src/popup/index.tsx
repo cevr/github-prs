@@ -1,18 +1,7 @@
 import "./popup.css";
-import { createRoot } from "react-dom/client";
-import { startTransition } from "react";
-
+import { render } from "solid-js/web";
 import { Popup } from "./popup";
 
-const root = createRoot(document.getElementById("root")!);
-function start() {
-  root.render(<Popup />);
-}
+const root = document.getElementById("root")!;
 
-startTransition(() => {
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", start);
-  } else {
-    start();
-  }
-});
+render(() => <Popup />, root);
