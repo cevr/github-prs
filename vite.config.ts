@@ -19,6 +19,13 @@ export default defineConfig({
       input: {
         popup: resolve(__dirname, "src/popup/popup.html"),
         options: resolve(__dirname, "src/options/options.html"),
+        background: resolve(__dirname, "src/background.ts"),
+      },
+      output: {
+        entryFileNames: (chunkInfo) => {
+          if (chunkInfo.name === "background") return "background.js"
+          return "assets/[name]-[hash].js"
+        },
       },
     },
   },

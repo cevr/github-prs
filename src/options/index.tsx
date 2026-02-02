@@ -1,4 +1,4 @@
-import "./options.css"
+import "../app.css"
 import { render } from "solid-js/web"
 import { Options } from "./options"
 

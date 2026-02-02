@@ -9,42 +9,13 @@ import {
   Switch,
   Match,
 } from "solid-js"
+import type { PRData, SeenPRs } from "../types"
 
-interface PR {
-  id: number
-  number: number
-  title: string
-  html_url: string
-  repository_url: string
-  updated_at: string
-  user: {
-    login: string
-    avatar_url: string
-  }
-  isApproved?: boolean
-  lastUpdatedBy?: string
-}
-
-interface PRData {
-  created: PR[]
-  assigned: PR[]
-}
-
-interface SeenPRs {
-  [key: string]: string
-}
-
-interface SetupData {
-  token: string
-  username: string
-}
-
-async function fetchSetup(): Promise<SetupData> {
+async function fetchSetup(): Promise<void> {
   const result = await chrome.storage.sync.get(["token", "username"])
   if (!result.token || !result.username) {
     throw new Error("setup_needed")
   }
-  return { token: result.token as string, username: result.username as string }
 }
 
 async function fetchPRs(): Promise<PRData> {
@@ -61,7 +32,6 @@ async function fetchSeenPRs(): Promise<SeenPRs> {
   return (seenPRs as SeenPRs) || {}
 }
 
-// SVG icon components to reduce duplication
 function RefreshIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -87,17 +57,21 @@ function SettingsIcon() {
 
 function Header(props: { onRefresh?: () => void }) {
   return (
-    <div class="header">
-      <h1>GitHub PR Tracker</h1>
-      <div class="header-actions">
+    <div class="bg-[#24292e] text-white px-[15px] py-2.5 flex justify-between items-center">
+      <h1 class="text-base m-0">GitHub PR Tracker</h1>
+      <div class="flex gap-2">
         <Show when={props.onRefresh}>
-          <button onClick={props.onRefresh} class="header-button" title="Refresh">
+          <button
+            onClick={props.onRefresh}
+            class="bg-transparent border-none text-white cursor-pointer p-1 rounded hover:bg-white/10"
+            title="Refresh"
+          >
             <RefreshIcon />
           </button>
         </Show>
         <button
           onClick={() => chrome.runtime.openOptionsPage()}
-          class="header-button"
+          class="bg-transparent border-none text-white cursor-pointer p-1 rounded hover:bg-white/10"
           title="Settings"
         >
           <SettingsIcon />
@@ -125,12 +99,12 @@ function PRList(props: { prsData: PRData; seenPRs: SeenPRs; onMarkSeen: (prId: n
     <Show
       when={allPRs().length > 0}
       fallback={
-        <div class="empty-state">
+        <div class="px-[15px] py-[30px] text-center text-[#586069]">
           <p>No PRs found.</p>
         </div>
       }
     >
-      <ul class="pr-list">
+      <ul class="list-none m-0 p-0">
         <For each={allPRs()}>
           {(pr) => {
             const prId = pr.id.toString()
@@ -142,25 +116,31 @@ function PRList(props: { prsData: PRData; seenPRs: SeenPRs; onMarkSeen: (prId: n
 
             return (
               <li
-                class={`pr-item ${isSeen() ? "pr-item-viewed" : ""}`}
+                class={`px-[15px] py-2.5 border-b border-[#e1e4e8] cursor-pointer transition-colors ${isSeen() ? "bg-[#f1f8ff] hover:bg-[#e8f4ff]" : "hover:bg-[#f6f8fa]"}`}
                 onClick={() => {
                   props.onMarkSeen(pr.id)
                   chrome.tabs.create({ url: pr.html_url })
                 }}
                 onMouseEnter={() => props.onMarkSeen(pr.id)}
               >
-                <div class="pr-title">
-                  <span class={`status-dot ${isUnseen() ? "unseen" : "seen"}`} />
-                  <span class="pr-title-text">{pr.title}</span>
-                  <span class={`pr-type-label ${pr.type === "APPROVED" ? "approved" : ""}`}>
+                <div class="font-medium mb-[5px] flex items-center gap-2 min-w-0">
+                  <span
+                    class={`inline-block w-2 h-2 rounded-full mr-2 align-middle shrink-0 ${isUnseen() ? "bg-[#f85149]" : "bg-[#666]"}`}
+                  />
+                  <span class="whitespace-nowrap overflow-hidden text-ellipsis flex-1 min-w-0">
+                    {pr.title}
+                  </span>
+                  <span
+                    class={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-xl shrink-0 ml-auto ${pr.type === "APPROVED" ? "text-white bg-[#2ea44f]" : "text-[#656d76] bg-[#f6f8fa]"}`}
+                  >
                     {pr.type}
                   </span>
                 </div>
-                <div class="pr-meta">
-                  <span class="pr-repo">
+                <div class="text-xs text-[#586069] flex items-center">
+                  <span class="whitespace-nowrap overflow-hidden text-ellipsis">
                     {getRepoNameFromUrl(pr.repository_url)} #{pr.number}
                   </span>
-                  <span class="pr-updated">{getTimeAgo(new Date(pr.updated_at))}</span>
+                  <span class="ml-auto">{getTimeAgo(new Date(pr.updated_at))}</span>
                 </div>
               </li>
             )
@@ -211,14 +191,12 @@ function PopupContent() {
   const [prsData, { refetch: refetchPRs }] = createResource(fetchPRs)
   const [seenPRs, { mutate: mutateSeenPRs, refetch: refetchSeenPRs }] = createResource(fetchSeenPRs)
 
-  // Listen for background messages to refetch
   const listener = (request: { action: string }) => {
     if (request.action === "prsUpdated") {
       refetchPRs()
       refetchSeenPRs()
     }
     if (request.action === "setupNeeded") {
-      // Force a full reload — setup state changed
       window.location.reload()
     }
   }
@@ -226,12 +204,10 @@ function PopupContent() {
   onCleanup(() => chrome.runtime.onMessage.removeListener(listener))
 
   const markSeen = (prId: number) => {
-    // Optimistic update
     mutateSeenPRs((prev) => ({
       ...(prev || {}),
       [prId]: new Date().toISOString(),
     }))
-    // Fire-and-forget to background
     chrome.runtime.sendMessage({ action: "markPRViewed", prId })
   }
 
@@ -239,24 +215,27 @@ function PopupContent() {
     <Switch>
       <Match when={setup.error?.message === "setup_needed"}>
         <Header />
-        <div class="setup-needed">
+        <div class="px-[15px] py-[30px] text-center">
           <p>Please set up your GitHub token to start tracking PRs.</p>
-          <button onClick={() => chrome.runtime.openOptionsPage()} class="setup-button">
+          <button
+            onClick={() => chrome.runtime.openOptionsPage()}
+            class="bg-[#2ea44f] text-white border-none px-4 py-2 rounded-md font-medium cursor-pointer mt-2.5 hover:bg-[#2c974b]"
+          >
             Open Settings
           </button>
         </div>
       </Match>
       <Match when={setup.loading || prsData.loading || seenPRs.loading}>
         <Header onRefresh={() => chrome.runtime.sendMessage({ action: "checkNow" })} />
-        <div class="loading">Loading...</div>
+        <div class="text-center px-[15px] py-[30px]">Loading...</div>
       </Match>
       <Match when={prsData.error?.message === "loading"}>
         <Header onRefresh={() => chrome.runtime.sendMessage({ action: "checkNow" })} />
-        <div class="loading">Loading...</div>
+        <div class="text-center px-[15px] py-[30px]">Loading...</div>
       </Match>
       <Match when={setup.error || prsData.error || seenPRs.error}>
         <Header />
-        <div class="empty-state">
+        <div class="px-[15px] py-[30px] text-center text-[#586069]">
           <p>
             Error:{" "}
             {(setup.error as Error)?.message ||
@@ -271,7 +250,7 @@ function PopupContent() {
         {(data) => (
           <>
             <Header onRefresh={() => chrome.runtime.sendMessage({ action: "checkNow" })} />
-            <div class="pr-container">
+            <div class="overflow-y-auto max-h-[225px]">
               <PRList prsData={data().prs} seenPRs={data().seen} onMarkSeen={markSeen} />
             </div>
           </>
@@ -287,13 +266,13 @@ export function Popup() {
       fallback={(err: Error) => (
         <>
           <Header />
-          <div class="empty-state">
+          <div class="px-[15px] py-[30px] text-center text-[#586069]">
             <p>Error: {err.message}</p>
           </div>
         </>
       )}
     >
-      <Suspense fallback={<div class="loading">Loading...</div>}>
+      <Suspense fallback={<div class="text-center px-[15px] py-[30px]">Loading...</div>}>
         <PopupContent />
       </Suspense>
     </ErrorBoundary>

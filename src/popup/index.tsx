@@ -1,4 +1,4 @@
-import "./popup.css"
+import "../app.css"
 import { render } from "solid-js/web"
 import { Popup } from "./popup"
 
