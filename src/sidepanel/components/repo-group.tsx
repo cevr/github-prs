@@ -17,7 +17,7 @@ export function RepoGroup(props: RepoGroupProps) {
       <button
         onClick={() => setOpen((v) => !v)}
         class="flex min-h-9 w-full items-center bg-[#0d1117] px-3 text-xs font-medium text-[#b1bac4] transition-colors hover:bg-[#161b22] hover:text-[#f0f6fc] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#58a6ff]"
-        aria-expanded={open()}
+        aria-expanded={open() ? "true" : "false"}
       >
         <ChevronIcon open={open()} />
         <span class="ml-1.5 flex-1 text-left">{props.group.repo}</span>

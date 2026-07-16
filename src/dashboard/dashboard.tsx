@@ -1,5 +1,6 @@
-import { createMemo, ErrorBoundary, For, Match, Show, Suspense, Switch } from "solid-js"
-import { getTimeAgo } from "@/lib/format"
+import { createMemo, For, Match, Show, Switch } from "solid-js"
+import { Errored, Loading } from "@solidjs/web"
+import { getErrorMessage, getTimeAgo } from "@/lib/format"
 import { createPRCollection } from "@/lib/pr-collection"
 import { usePRSnapshot } from "@/lib/use-pr-snapshot"
 import type { PR, SeenPRs } from "@/types"
@@ -81,7 +82,7 @@ function DashboardList(props: {
                       </span>
                       <time
                         class="pt-0.5 text-xs tabular-nums text-[#8b949e]"
-                        dateTime={item.pr.updated_at}
+                        datetime={item.pr.updated_at}
                         title={item.pr.updated_at}
                       >
                         {getTimeAgo(new Date(item.pr.updated_at))}
@@ -233,14 +234,14 @@ function DashboardContent() {
 
 export function Dashboard() {
   return (
-    <ErrorBoundary
-      fallback={(error: Error) => (
+    <Errored
+      fallback={(error) => (
         <main class="grid min-h-screen place-items-center bg-[#010409] px-6 text-sm text-[#ffb4ad]">
-          {error.message}
+          {getErrorMessage(error(), "Unable to render the dashboard.")}
         </main>
       )}
     >
-      <Suspense
+      <Loading
         fallback={
           <main class="grid min-h-screen place-items-center bg-[#010409] text-sm text-[#8b949e]">
             Loading dashboard…
@@ -248,7 +249,7 @@ export function Dashboard() {
         }
       >
         <DashboardContent />
-      </Suspense>
-    </ErrorBoundary>
+      </Loading>
+    </Errored>
   )
 }

@@ -16,7 +16,8 @@
     "prepare": "lefthook install"
   },
   "dependencies": {
-    "solid-js": "^1.9.14"
+    "@solidjs/web": "2.0.0-beta.19",
+    "solid-js": "2.0.0-beta.19"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
@@ -30,6 +31,6 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.1.5",
-    "vite-plugin-solid": "^2.11.12"
+    "vite-plugin-solid": "3.0.0-next.12"
   }
 }

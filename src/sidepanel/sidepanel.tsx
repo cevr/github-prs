@@ -1,17 +1,8 @@
-import {
-  createSignal,
-  createMemo,
-  ErrorBoundary,
-  Suspense,
-  Switch,
-  Match,
-  For,
-  Show,
-  onMount,
-  onCleanup,
-} from "solid-js"
+import { createSignal, createMemo, Switch, Match, For, Show, onSettled } from "solid-js"
+import { Errored, Loading } from "@solidjs/web"
 import { usePRSnapshot } from "@/lib/use-pr-snapshot"
 import { createPRCollection } from "@/lib/pr-collection"
+import { getErrorMessage } from "@/lib/format"
 import { setupKeyboardNav } from "./lib/keyboard"
 import { Header } from "./components/header"
 import { TabBar } from "./components/tab-bar"
@@ -24,10 +15,7 @@ function SidePanelContent() {
   const { state, refresh, markSeen } = usePRSnapshot()
   const [activeTab, setActiveTab] = createSignal<Tab>("mine")
 
-  onMount(() => {
-    const cleanup = setupKeyboardNav("#pr-list")
-    onCleanup(cleanup)
-  })
+  onSettled(() => setupKeyboardNav("#pr-list"))
 
   const available = createMemo(() => {
     const current = state()
@@ -119,18 +107,20 @@ function SidePanelContent() {
 export function SidePanel() {
   return (
     <div class="flex flex-col h-screen bg-[#0d1117] text-[#e6edf3]">
-      <ErrorBoundary
-        fallback={(err: Error) => (
+      <Errored
+        fallback={(error) => (
           <>
             <Header />
-            <div class="text-center py-12 text-sm text-[#f85149]">{err.message}</div>
+            <div class="text-center py-12 text-sm text-[#f85149]">
+              {getErrorMessage(error(), "Unable to render pull requests.")}
+            </div>
           </>
         )}
       >
-        <Suspense fallback={<div class="text-center py-12 text-sm text-[#8b949e]">Loading...</div>}>
+        <Loading fallback={<div class="text-center py-12 text-sm text-[#8b949e]">Loading...</div>}>
           <SidePanelContent />
-        </Suspense>
-      </ErrorBoundary>
+        </Loading>
+      </Errored>
     </div>
   )
 }

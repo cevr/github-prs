@@ -1,5 +1,5 @@
 import "../app.css"
-import { render } from "solid-js/web"
+import { render } from "@solidjs/web"
 import { Options } from "./options"
 
 const root = document.getElementById("root")

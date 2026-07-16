@@ -45,7 +45,7 @@ export function PRRow(props: PRRowProps) {
       </span>
       <time
         class="pt-0.5 text-[11px] tabular-nums text-[#8b949e]"
-        dateTime={pr().updated_at}
+        datetime={pr().updated_at}
         title={pr().updated_at}
       >
         {getTimeAgo(new Date(pr().updated_at))}
