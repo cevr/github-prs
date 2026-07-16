@@ -1,16 +1,15 @@
 import type { PR, PRData, SeenPRs, SyncState } from "./types"
-
-const DEFAULT_CHECK_INTERVAL = 15
+import {
+  clearTrackerAccount,
+  initializeTrackerSettings,
+  isAccountConfigured,
+  readTrackerSettings,
+} from "./lib/tracker-settings"
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.sync.get(["token", "username", "checkInterval"], (result) => {
-    if (!result.checkInterval) {
-      chrome.storage.sync.set({ checkInterval: DEFAULT_CHECK_INTERVAL })
-    }
-    setupAlarm(Number(result.checkInterval) || DEFAULT_CHECK_INTERVAL)
-  })
+  void initializeTrackerSettings().then((settings) => setupAlarm(settings.checkInterval))
 })
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -104,12 +103,9 @@ async function checkForUpdates() {
   const { syncState: previousSyncState }: { syncState?: SyncState } =
     await chrome.storage.local.get(["syncState"])
   try {
-    const { token, username, hideInactivePRs } = await chrome.storage.sync.get([
-      "token",
-      "username",
-      "hideInactivePRs",
-    ])
-    if (!token || !username) return
+    const settings = await readTrackerSettings()
+    if (!isAccountConfigured(settings)) return
+    const { token, username, hideInactivePRs } = settings
 
     await chrome.storage.local.set({
       syncState: {
@@ -141,9 +137,7 @@ async function checkForUpdates() {
       ]).then(([assigned, reviewRequested]) => dedupPRs(assigned, reviewRequested)),
     ]).catch(async (error: Error) => {
       if (error.message.includes("401")) {
-        await chrome.storage.sync.remove(["token", "username"])
-        await chrome.storage.local.remove(["previousPRs", "seenPRs"])
-        await chrome.runtime.sendMessage({ action: "setupNeeded" })
+        await clearTrackerAccount()
       }
       throw error
     })
@@ -282,7 +276,7 @@ async function fetchPRs(token: string, url: string): Promise<PR[]> {
 }
 
 chrome.runtime.onMessage.addListener(
-  (request: { action: string; prId?: number; checkInterval?: number }, _sender, sendResponse) => {
+  (request: { action: string; prId?: number }, _sender, sendResponse) => {
     if (request.action === "checkNow") {
       checkForUpdates()
       sendResponse()
@@ -290,7 +284,7 @@ chrome.runtime.onMessage.addListener(
       markPRViewed(request.prId)
       sendResponse()
     } else if (request.action === "updateSettings") {
-      setupAlarm(Number(request.checkInterval) || DEFAULT_CHECK_INTERVAL)
+      void readTrackerSettings().then((settings) => setupAlarm(settings.checkInterval))
       sendResponse()
     }
   },

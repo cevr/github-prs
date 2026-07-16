@@ -11,3 +11,7 @@ _Avoid_: PR data, cache
 **PR Collection**:
 An ordered, repository-grouped view of pull requests prepared for quick scanning, including which entries need attention.
 _Avoid_: PR list, grouped PRs
+
+**Tracker Settings**:
+The account connection and refresh preferences that govern which pull requests the tracker keeps current.
+_Avoid_: Options, config

@@ -19,13 +19,6 @@ export interface SeenPRs {
   [key: string]: string
 }
 
-export interface OptionsData {
-  token: string
-  username: string
-  checkInterval: number
-  hideInactivePRs: boolean
-}
-
 export interface SyncState {
   status: "idle" | "syncing" | "error"
   lastSyncedAt?: string

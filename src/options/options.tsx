@@ -1,20 +1,9 @@
 import { createResource, createSignal, ErrorBoundary, Show, Suspense } from "solid-js"
-import type { OptionsData } from "../types"
-
-async function fetchOptions(): Promise<OptionsData> {
-  const result = await chrome.storage.sync.get([
-    "token",
-    "username",
-    "checkInterval",
-    "hideInactivePRs",
-  ])
-  return {
-    token: (result.token as string) ?? "",
-    username: (result.username as string) ?? "",
-    checkInterval: Number(result.checkInterval) || 15,
-    hideInactivePRs: result.hideInactivePRs !== false,
-  }
-}
+import {
+  InvalidTrackerSettingsError,
+  readTrackerSettings,
+  saveTrackerSettings,
+} from "@/lib/tracker-settings"
 
 const inputClass =
   "w-full box-border rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2.5 text-sm text-[#f0f6fc] outline-none placeholder:text-[#6e7681] hover:border-[#484f58] focus:border-[#58a6ff] focus:ring-1 focus:ring-[#58a6ff]"
@@ -22,47 +11,37 @@ const inputClass =
 const labelClass = "mb-1.5 block text-sm font-medium text-[#f0f6fc]"
 
 function OptionsPage() {
-  const [options] = createResource(fetchOptions)
+  const [options] = createResource(readTrackerSettings)
   const [showToken, setShowToken] = createSignal(false)
   const [status, setStatus] = createSignal<{
     message: string
     type: "success" | "error"
   }>()
 
-  const handleSubmit = (event: SubmitEvent) => {
+  const handleSubmit = async (event: SubmitEvent) => {
     event.preventDefault()
     setStatus()
 
     const form = event.currentTarget as HTMLFormElement
     const formData = new FormData(form)
 
-    const token = String(formData.get("token") ?? "").trim()
-    const username = String(formData.get("username") ?? "").trim()
-    const checkInterval = Math.min(60, Math.max(5, Number(formData.get("checkInterval")) || 15))
-    const hideInactivePRs = formData.get("hideInactivePRs") === "on"
-
-    if (!token) {
-      setStatus({ message: "Add a GitHub personal access token to continue.", type: "error" })
-      return
-    }
-    if (!username) {
-      setStatus({ message: "Add your GitHub username to continue.", type: "error" })
-      return
-    }
-
-    chrome.storage.sync.set({ token, username, checkInterval, hideInactivePRs }, () => {
-      if (chrome.runtime.lastError) {
-        setStatus({
-          message: chrome.runtime.lastError.message ?? "Chrome could not save these settings.",
-          type: "error",
-        })
-        return
-      }
-
+    try {
+      await saveTrackerSettings({
+        token: String(formData.get("token") ?? ""),
+        username: String(formData.get("username") ?? ""),
+        checkInterval: Number(formData.get("checkInterval")),
+        hideInactivePRs: formData.get("hideInactivePRs") === "on",
+      })
       setStatus({ message: "Settings saved. Refreshing pull requests now.", type: "success" })
-      chrome.runtime.sendMessage({ action: "updateSettings", checkInterval })
-      chrome.runtime.sendMessage({ action: "checkNow" })
-    })
+    } catch (error) {
+      setStatus({
+        message:
+          error instanceof InvalidTrackerSettingsError
+            ? error.message
+            : "Chrome could not save these settings.",
+        type: "error",
+      })
+    }
   }
 
   return (

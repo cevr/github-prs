@@ -1,6 +1,7 @@
 import { createSignal, onCleanup } from "solid-js"
 import type { Accessor } from "solid-js"
 import type { PRData, SeenPRs, SyncState } from "@/types"
+import { isAccountConfigured, readTrackerSettings } from "./tracker-settings"
 
 export interface CachedPRSnapshot {
   prs: PRData
@@ -41,12 +42,12 @@ export function usePRSnapshot(): PRSnapshotModel {
 
     try {
       const [settings, local] = await Promise.all([
-        chrome.storage.sync.get(["token", "username"]),
+        readTrackerSettings(),
         chrome.storage.local.get(["previousPRs", "seenPRs", "syncState"]),
       ])
       if (generation !== readGeneration) return
 
-      if (!settings.token || !settings.username) {
+      if (!isAccountConfigured(settings)) {
         setState({ kind: "setup-needed" })
         return
       }
