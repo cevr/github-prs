@@ -7,3 +7,7 @@ GitHub PR Tracker keeps a developer's authored and review-requested pull request
 **PR Snapshot**:
 A coherent view of tracked pull requests, their seen state, and the latest synchronization result shared by every tracker surface.
 _Avoid_: PR data, cache
+
+**PR Collection**:
+An ordered, repository-grouped view of pull requests prepared for quick scanning, including which entries need attention.
+_Avoid_: PR list, grouped PRs

@@ -1,12 +1,10 @@
 import { createSignal, For } from "solid-js"
-import type { SeenPRs } from "@/types"
-import type { RepoGroup as RepoGroupData } from "@/lib/group-prs"
+import type { PRCollectionGroup } from "@/lib/pr-collection"
 import { ChevronIcon } from "./icons"
 import { PRRow } from "./pr-row"
 
 interface RepoGroupProps {
-  group: RepoGroupData
-  seenPRs: SeenPRs
+  group: PRCollectionGroup
   onMarkSeen: (prId: number) => void
   showApproved?: boolean
 }
@@ -24,18 +22,13 @@ export function RepoGroup(props: RepoGroupProps) {
         <ChevronIcon open={open()} />
         <span class="ml-1.5 flex-1 text-left">{props.group.repo}</span>
         <span class="rounded-full bg-[#21262d] px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-[#8b949e]">
-          {props.group.prs.length}
+          {props.group.items.length}
         </span>
       </button>
       <div class={open() ? "" : "hidden"}>
-        <For each={props.group.prs}>
-          {(pr) => (
-            <PRRow
-              pr={pr}
-              seenPRs={props.seenPRs}
-              onMarkSeen={props.onMarkSeen}
-              showApproved={props.showApproved}
-            />
+        <For each={props.group.items}>
+          {(item) => (
+            <PRRow item={item} onMarkSeen={props.onMarkSeen} showApproved={props.showApproved} />
           )}
         </For>
       </div>

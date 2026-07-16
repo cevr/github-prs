@@ -1,11 +1,3 @@
-export function getRepoName(repositoryUrl: string): string {
-  const parts = repositoryUrl.split("/")
-  if (parts.length >= 2) {
-    return `${parts[parts.length - 2]}/${parts[parts.length - 1]}`
-  }
-  return "unknown/repo"
-}
-
 export function getTimeAgo(date: Date): string {
   const now = new Date()
   const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)

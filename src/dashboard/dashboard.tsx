@@ -1,13 +1,8 @@
 import { createMemo, ErrorBoundary, For, Match, Show, Suspense, Switch } from "solid-js"
 import { getTimeAgo } from "@/lib/format"
-import { groupByRepo } from "@/lib/group-prs"
+import { createPRCollection } from "@/lib/pr-collection"
 import { usePRSnapshot } from "@/lib/use-pr-snapshot"
 import type { PR, SeenPRs } from "@/types"
-
-function isUnseen(pr: PR, seenPRs: SeenPRs): boolean {
-  const seenAt = seenPRs[pr.id.toString()]
-  return !seenAt || new Date(pr.updated_at) > new Date(seenAt)
-}
 
 function DashboardList(props: {
   title: string
@@ -18,8 +13,7 @@ function DashboardList(props: {
   showApproved?: boolean
   onMarkSeen: (prId: number) => void
 }) {
-  const groups = createMemo(() => groupByRepo(props.prs))
-  const unseenCount = createMemo(() => props.prs.filter((pr) => isUnseen(pr, props.seenPRs)).length)
+  const collection = createMemo(() => createPRCollection(props.prs, props.seenPRs))
 
   return (
     <section class="overflow-hidden rounded-xl border border-[#30363d] bg-[#0d1117]">
@@ -29,17 +23,17 @@ function DashboardList(props: {
           <p class="mt-1 mb-0 text-xs text-[#8b949e]">{props.description}</p>
         </div>
         <div class="flex items-center gap-2 text-xs tabular-nums text-[#8b949e]">
-          <Show when={unseenCount() > 0}>
+          <Show when={collection().unseenCount > 0}>
             <span class="rounded-full bg-[#1f6feb] px-2 py-1 font-semibold text-white">
-              {unseenCount()} new
+              {collection().unseenCount} new
             </span>
           </Show>
-          <span>{props.prs.length} total</span>
+          <span>{collection().totalCount} total</span>
         </div>
       </header>
 
       <Show
-        when={groups().length > 0}
+        when={collection().groups.length > 0}
         fallback={
           <div class="grid min-h-44 place-items-center px-6 text-center text-sm text-[#8b949e]">
             {props.emptyMessage}
@@ -47,28 +41,28 @@ function DashboardList(props: {
         }
       >
         <div>
-          <For each={groups()}>
+          <For each={collection().groups}>
             {(group) => (
               <section class="border-t border-[#21262d] first:border-t-0">
                 <div class="flex items-center justify-between bg-[#161b22] px-5 py-2.5 text-xs font-medium text-[#b1bac4]">
                   <span>{group.repo}</span>
-                  <span class="tabular-nums text-[#8b949e]">{group.prs.length}</span>
+                  <span class="tabular-nums text-[#8b949e]">{group.items.length}</span>
                 </div>
-                <For each={group.prs}>
-                  {(pr) => (
+                <For each={group.items}>
+                  {(item) => (
                     <a
-                      href={pr.html_url}
+                      href={item.pr.html_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      onClick={() => props.onMarkSeen(pr.id)}
+                      onClick={() => props.onMarkSeen(item.pr.id)}
                       class="grid grid-cols-[12px_minmax(0,1fr)_auto] items-start gap-3 border-t border-[#21262d] px-5 py-3.5 text-[#f0f6fc] no-underline outline-none first:border-t-0 hover:bg-[#161b22] focus-visible:bg-[#161b22] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#58a6ff]"
                     >
                       <span class="flex h-5 items-center justify-center" aria-hidden="true">
                         <span
                           class={`size-2 rounded-full ${
-                            props.showApproved && pr.isApproved
+                            props.showApproved && item.pr.isApproved
                               ? "bg-[#3fb950]"
-                              : isUnseen(pr, props.seenPRs)
+                              : item.unseen
                                 ? "bg-[#58a6ff]"
                                 : "bg-[#484f58]"
                           }`}
@@ -76,21 +70,21 @@ function DashboardList(props: {
                       </span>
                       <span class="min-w-0">
                         <span
-                          class={`block truncate text-sm leading-5 ${isUnseen(pr, props.seenPRs) ? "font-semibold" : "font-medium"}`}
+                          class={`block truncate text-sm leading-5 ${item.unseen ? "font-semibold" : "font-medium"}`}
                         >
-                          {pr.title}
+                          {item.pr.title}
                         </span>
                         <span class="mt-0.5 block text-xs text-[#8b949e]">
-                          #{pr.number} · {pr.user.login}
-                          <Show when={props.showApproved && pr.isApproved}> · Approved</Show>
+                          #{item.pr.number} · {item.pr.user.login}
+                          <Show when={props.showApproved && item.pr.isApproved}> · Approved</Show>
                         </span>
                       </span>
                       <time
                         class="pt-0.5 text-xs tabular-nums text-[#8b949e]"
-                        dateTime={pr.updated_at}
-                        title={pr.updated_at}
+                        dateTime={item.pr.updated_at}
+                        title={item.pr.updated_at}
                       >
-                        {getTimeAgo(new Date(pr.updated_at))}
+                        {getTimeAgo(new Date(item.pr.updated_at))}
                       </time>
                     </a>
                   )}

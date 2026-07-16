@@ -11,7 +11,7 @@ import {
   onCleanup,
 } from "solid-js"
 import { usePRSnapshot } from "@/lib/use-pr-snapshot"
-import { groupByRepo } from "@/lib/group-prs"
+import { createPRCollection } from "@/lib/pr-collection"
 import { setupKeyboardNav } from "./lib/keyboard"
 import { Header } from "./components/header"
 import { TabBar } from "./components/tab-bar"
@@ -19,20 +19,6 @@ import type { Tab } from "./components/tab-bar"
 import { RepoGroup } from "./components/repo-group"
 import { EmptyState } from "./components/empty-state"
 import { SetupPrompt } from "./components/setup-prompt"
-
-function countUnseen(
-  prs: { id: number; updated_at: string }[],
-  seenPRs: Record<string, string>,
-): number {
-  let count = 0
-  for (const pr of prs) {
-    const seen = seenPRs[pr.id.toString()]
-    if (!seen || new Date(pr.updated_at) > new Date(seen)) {
-      count++
-    }
-  }
-  return count
-}
 
 function SidePanelContent() {
   const { state, refresh, markSeen } = usePRSnapshot()
@@ -51,15 +37,11 @@ function SidePanelContent() {
     const current = state()
     return current.kind === "unavailable" ? current : undefined
   })
-  const minePRs = createMemo(() => available()?.snapshot.prs.created ?? [])
-  const reviewPRs = createMemo(() => available()?.snapshot.prs.assigned ?? [])
-
-  const mineGroups = createMemo(() => groupByRepo(minePRs()))
-  const reviewGroups = createMemo(() => groupByRepo(reviewPRs()))
-
-  const mineUnseenCount = createMemo(() => countUnseen(minePRs(), available()?.snapshot.seen ?? {}))
-  const reviewUnseenCount = createMemo(() =>
-    countUnseen(reviewPRs(), available()?.snapshot.seen ?? {}),
+  const mineCollection = createMemo(() =>
+    createPRCollection(available()?.snapshot.prs.created ?? [], available()?.snapshot.seen ?? {}),
+  )
+  const reviewCollection = createMemo(() =>
+    createPRCollection(available()?.snapshot.prs.assigned ?? [], available()?.snapshot.seen ?? {}),
   )
 
   return (
@@ -83,7 +65,7 @@ function SidePanelContent() {
       <Match when={available()}>
         {(data) => {
           const activeGroups = createMemo(() =>
-            activeTab() === "mine" ? mineGroups() : reviewGroups(),
+            activeTab() === "mine" ? mineCollection().groups : reviewCollection().groups,
           )
           const showApproved = createMemo(() => activeTab() === "mine")
 
@@ -103,10 +85,10 @@ function SidePanelContent() {
               <TabBar
                 active={activeTab()}
                 onTabChange={setActiveTab}
-                minePRCount={minePRs().length}
-                reviewPRCount={reviewPRs().length}
-                mineUnseenCount={mineUnseenCount()}
-                reviewUnseenCount={reviewUnseenCount()}
+                minePRCount={mineCollection().totalCount}
+                reviewPRCount={reviewCollection().totalCount}
+                mineUnseenCount={mineCollection().unseenCount}
+                reviewUnseenCount={reviewCollection().unseenCount}
               />
               <div id="pr-list" class="min-h-0 flex-1 overflow-y-auto">
                 <Switch>
@@ -118,7 +100,6 @@ function SidePanelContent() {
                       {(group) => (
                         <RepoGroup
                           group={group}
-                          seenPRs={data().snapshot.seen}
                           onMarkSeen={markSeen}
                           showApproved={showApproved()}
                         />
