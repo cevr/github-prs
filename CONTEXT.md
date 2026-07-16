@@ -15,3 +15,7 @@ _Avoid_: PR list, grouped PRs
 **Tracker Settings**:
 The account connection and refresh preferences that govern which pull requests the tracker keeps current.
 _Avoid_: Options, config
+
+**PR Synchronization**:
+The serialized process that refreshes a PR Snapshot from GitHub and reconciles seen state and attention across tracker surfaces.
+_Avoid_: Refresh, poll

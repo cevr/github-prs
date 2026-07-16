@@ -1,10 +1,66 @@
-import type { PR, PRData, SeenPRs, SyncState } from "./types"
+import type { PRData, SeenPRs, SyncState } from "./types"
 import {
   clearTrackerAccount,
   initializeTrackerSettings,
-  isAccountConfigured,
   readTrackerSettings,
 } from "./lib/tracker-settings"
+import { createGitHubPRSource } from "./background/github-pr-source"
+import { createPRSynchronization } from "./background/pr-synchronization"
+
+const synchronization = createPRSynchronization({
+  source: createGitHubPRSource(),
+  settings: {
+    read: readTrackerSettings,
+    clearAccount: clearTrackerAccount,
+  },
+  store: {
+    async read() {
+      const stored: { seenPRs?: SeenPRs; syncState?: SyncState } = await chrome.storage.local.get([
+        "seenPRs",
+        "syncState",
+      ])
+      return { seen: stored.seenPRs ?? {}, sync: stored.syncState }
+    },
+    async setSeen(seenPRs) {
+      await chrome.storage.local.set({ seenPRs })
+    },
+    async setSync(syncState) {
+      await chrome.storage.local.set({ syncState })
+    },
+    async commit(previousPRs: PRData, seenPRs: SeenPRs, syncState: SyncState) {
+      await chrome.storage.local.set({ previousPRs, seenPRs, syncState })
+    },
+  },
+  effects: {
+    async syncStateChanged() {
+      await chrome.runtime.sendMessage({ action: "syncStateChanged" }).catch(() => undefined)
+    },
+    async prsUpdated() {
+      await chrome.runtime.sendMessage({ action: "prsUpdated" }).catch(() => undefined)
+    },
+    async updateBadge({ total, hasUnseen }) {
+      if (total === 0) {
+        await chrome.action.setBadgeText({ text: "" })
+        return
+      }
+      await Promise.all([
+        chrome.action.setBadgeText({ text: total.toString() }),
+        chrome.action.setBadgeTextColor({ color: "#fff" }),
+        chrome.action.setBadgeBackgroundColor({ color: hasUnseen ? "#f85149" : "#666" }),
+      ])
+    },
+  },
+})
+
+function run(operation: Promise<void>) {
+  void operation.catch((error) => console.error("PR synchronization failed:", error))
+}
+
+function setupAlarm(interval: number) {
+  chrome.alarms.clear("checkPRs", () => {
+    chrome.alarms.create("checkPRs", { periodInMinutes: interval })
+  })
+}
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
 
@@ -13,275 +69,16 @@ chrome.runtime.onInstalled.addListener(() => {
 })
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === "checkPRs") {
-    checkForUpdates()
-  }
+  if (alarm.name === "checkPRs") run(synchronization.refresh())
 })
-
-function setupAlarm(interval: number) {
-  chrome.alarms.clear("checkPRs", () => {
-    chrome.alarms.create("checkPRs", { periodInMinutes: interval })
-  })
-}
-
-interface TimelineEvent {
-  event: string
-  state?: string
-  actor?: { login: string }
-}
-
-async function fetchPRTimeline(
-  token: string,
-  repoOwner: string,
-  repoName: string,
-  prNumber: number,
-): Promise<{ isApproved: boolean; lastUpdatedBy: string | null }> {
-  const timelineUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/pulls/${prNumber}/timeline`
-
-  try {
-    const response = await fetch(timelineUrl, {
-      headers: {
-        Authorization: `token ${token}`,
-        Accept: "application/vnd.github.v3+json",
-      },
-    })
-
-    if (!response.ok) {
-      return { isApproved: false, lastUpdatedBy: null }
-    }
-
-    const timeline: TimelineEvent[] = await response.json()
-    let isApproved = false
-    let lastUpdatedBy: string | null = null
-
-    // Walk backwards: find most recent reviewer action, determine approval state
-    for (let i = timeline.length - 1; i >= 0; i--) {
-      const event = timeline[i]
-
-      if (
-        !lastUpdatedBy &&
-        event.actor &&
-        (event.event === "reviewed" ||
-          event.event === "committed" ||
-          event.event === "commented" ||
-          event.event === "synchronized")
-      ) {
-        lastUpdatedBy = event.actor.login
-      }
-
-      if (event.event === "reviewed" && event.state === "approved") {
-        isApproved = true
-        break
-      }
-
-      if (event.event === "reviewed" && event.state !== "approved") {
-        break
-      }
-    }
-
-    return { isApproved, lastUpdatedBy }
-  } catch (error) {
-    console.error("Error fetching timeline:", error)
-    return { isApproved: false, lastUpdatedBy: null }
-  }
-}
-
-function dedupPRs(...lists: PR[][]): PR[] {
-  const unique = new Map<string, PR>()
-  for (const list of lists) {
-    for (const pr of list) {
-      const key = pr.id.toString()
-      if (!unique.has(key)) {
-        unique.set(key, pr)
-      }
-    }
-  }
-  return Array.from(unique.values())
-}
-
-async function checkForUpdates() {
-  const { syncState: previousSyncState }: { syncState?: SyncState } =
-    await chrome.storage.local.get(["syncState"])
-  try {
-    const settings = await readTrackerSettings()
-    if (!isAccountConfigured(settings)) return
-    const { token, username, hideInactivePRs } = settings
-
-    await chrome.storage.local.set({
-      syncState: {
-        status: "syncing",
-        lastSyncedAt: previousSyncState?.lastSyncedAt,
-      } satisfies SyncState,
-    })
-    await chrome.runtime.sendMessage({ action: "syncStateChanged" }).catch(() => undefined)
-
-    const { seenPRs = {} }: { seenPRs?: SeenPRs } = await chrome.storage.local.get(["seenPRs"])
-
-    const [createdPRs, assignedPRs] = await Promise.all([
-      fetchPRsWithTimeline({
-        token: token as string,
-        url: `https://api.github.com/search/issues?q=is:pr+author:${username}+is:open`,
-        includeApprovalStatus: true,
-      }),
-      Promise.all([
-        fetchPRsWithTimeline({
-          token: token as string,
-          url: `https://api.github.com/search/issues?q=is:pr+is:open+assignee:${username}`,
-          includeApprovalStatus: false,
-        }),
-        fetchPRsWithTimeline({
-          token: token as string,
-          url: `https://api.github.com/search/issues?q=is:pr+is:open+review-requested:${username}`,
-          includeApprovalStatus: false,
-        }),
-      ]).then(([assigned, reviewRequested]) => dedupPRs(assigned, reviewRequested)),
-    ]).catch(async (error: Error) => {
-      if (error.message.includes("401")) {
-        await clearTrackerAccount()
-      }
-      throw error
-    })
-
-    const filterInactivePRs = (prs: PR[]): PR[] => {
-      if (!hideInactivePRs) return prs
-      const oneMonthAgo = new Date()
-      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
-      return prs.filter((pr) => new Date(pr.updated_at) >= oneMonthAgo)
-    }
-
-    const newPRs: PRData = {
-      created: filterInactivePRs(createdPRs),
-      assigned: filterInactivePRs(assignedPRs),
-    }
-
-    const allPRs = dedupPRs(createdPRs, assignedPRs)
-    const updatedSeenPRs: SeenPRs = { ...seenPRs }
-
-    for (const prId of Object.keys(updatedSeenPRs)) {
-      if (!allPRs.find((pr) => pr.id.toString() === prId)) {
-        delete updatedSeenPRs[prId]
-      }
-    }
-
-    let hasUnseenUpdates = false
-    for (const pr of allPRs) {
-      const prId = pr.id.toString()
-      const lastSeen = updatedSeenPRs[prId]
-      if (
-        !lastSeen ||
-        (new Date(pr.updated_at) > new Date(lastSeen) && pr.lastUpdatedBy !== username)
-      ) {
-        hasUnseenUpdates = true
-        break
-      }
-    }
-
-    const totalPRs = newPRs.created.length + newPRs.assigned.length
-    if (totalPRs > 0) {
-      chrome.action.setBadgeText({ text: totalPRs.toString() })
-      chrome.action.setBadgeTextColor({ color: "#fff" })
-      chrome.action.setBadgeBackgroundColor({
-        color: hasUnseenUpdates ? "#f85149" : "#666",
-      })
-    } else {
-      chrome.action.setBadgeText({ text: "" })
-    }
-
-    await chrome.storage.local.set({
-      previousPRs: newPRs,
-      seenPRs: updatedSeenPRs,
-      syncState: {
-        status: "idle",
-        lastSyncedAt: new Date().toISOString(),
-      } satisfies SyncState,
-    })
-    await chrome.runtime.sendMessage({ action: "prsUpdated" })
-  } catch (error) {
-    console.error("Error checking for updates:", error)
-    await chrome.storage.local.set({
-      syncState: {
-        status: "error",
-        lastSyncedAt: previousSyncState?.lastSyncedAt,
-        message: error instanceof Error ? error.message : "Unable to refresh pull requests",
-      } satisfies SyncState,
-    })
-    await chrome.runtime.sendMessage({ action: "syncStateChanged" }).catch(() => undefined)
-  }
-}
-
-async function fetchPRsWithTimeline({
-  token,
-  url,
-  includeApprovalStatus = false,
-}: {
-  token: string
-  url: string
-  includeApprovalStatus?: boolean
-}): Promise<PR[]> {
-  const prs = await fetchPRs(token, url)
-  return Promise.all(
-    prs.map(async (pr) => {
-      const repoParts = pr.repository_url.split("/")
-      const repoOwner = repoParts[repoParts.length - 2]
-      const repoName = repoParts[repoParts.length - 1]
-
-      const { isApproved, lastUpdatedBy } = await fetchPRTimeline(
-        token,
-        repoOwner,
-        repoName,
-        pr.number,
-      )
-
-      return {
-        ...pr,
-        ...(includeApprovalStatus && { isApproved }),
-        lastUpdatedBy: lastUpdatedBy ?? undefined,
-      }
-    }),
-  )
-}
-
-interface GitHubSearchItem {
-  id: number
-  number: number
-  title: string
-  html_url: string
-  repository_url: string
-  updated_at: string
-  user: { login: string }
-}
-
-async function fetchPRs(token: string, url: string): Promise<PR[]> {
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `token ${token}`,
-      Accept: "application/vnd.github.v3+json",
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error(`GitHub API error: ${response.status}`)
-  }
-
-  const data: { items: GitHubSearchItem[] } = await response.json()
-  return data.items.map((item) => ({
-    id: item.id,
-    number: item.number,
-    title: item.title,
-    html_url: item.html_url,
-    repository_url: item.repository_url,
-    updated_at: item.updated_at,
-    user: { login: item.user.login },
-  }))
-}
 
 chrome.runtime.onMessage.addListener(
   (request: { action: string; prId?: number }, _sender, sendResponse) => {
     if (request.action === "checkNow") {
-      checkForUpdates()
+      run(synchronization.refresh())
       sendResponse()
     } else if (request.action === "markPRViewed" && request.prId != null) {
-      markPRViewed(request.prId)
+      run(synchronization.markSeen(request.prId))
       sendResponse()
     } else if (request.action === "updateSettings") {
       void readTrackerSettings().then((settings) => setupAlarm(settings.checkInterval))
@@ -289,10 +86,3 @@ chrome.runtime.onMessage.addListener(
     }
   },
 )
-
-async function markPRViewed(prId: number) {
-  const { seenPRs = {} }: { seenPRs?: SeenPRs } = await chrome.storage.local.get(["seenPRs"])
-  seenPRs[prId] = new Date().toISOString()
-  await chrome.storage.local.set({ seenPRs })
-  checkForUpdates()
-}
