@@ -10,8 +10,7 @@ import {
   onMount,
   onCleanup,
 } from "solid-js"
-import type { PRData, SeenPRs } from "@/types"
-import { usePRData } from "@/lib/use-pr-data"
+import { usePRSnapshot } from "@/lib/use-pr-snapshot"
 import { groupByRepo } from "@/lib/group-prs"
 import { setupKeyboardNav } from "./lib/keyboard"
 import { Header } from "./components/header"
@@ -21,7 +20,10 @@ import { RepoGroup } from "./components/repo-group"
 import { EmptyState } from "./components/empty-state"
 import { SetupPrompt } from "./components/setup-prompt"
 
-function countUnseen(prs: { id: number; updated_at: string }[], seenPRs: SeenPRs): number {
+function countUnseen(
+  prs: { id: number; updated_at: string }[],
+  seenPRs: Record<string, string>,
+): number {
   let count = 0
   for (const pr of prs) {
     const seen = seenPRs[pr.id.toString()]
@@ -33,7 +35,7 @@ function countUnseen(prs: { id: number; updated_at: string }[], seenPRs: SeenPRs
 }
 
 function SidePanelContent() {
-  const { setup, prsData, seenPRs, syncState, refresh, markSeen } = usePRData()
+  const { state, refresh, markSeen } = usePRSnapshot()
   const [activeTab, setActiveTab] = createSignal<Tab>("mine")
 
   onMount(() => {
@@ -41,44 +43,44 @@ function SidePanelContent() {
     onCleanup(cleanup)
   })
 
-  const minePRs = createMemo(() => prsData()?.created ?? [])
-  const reviewPRs = createMemo(() => prsData()?.assigned ?? [])
+  const available = createMemo(() => {
+    const current = state()
+    return current.kind === "available" ? current : undefined
+  })
+  const unavailable = createMemo(() => {
+    const current = state()
+    return current.kind === "unavailable" ? current : undefined
+  })
+  const minePRs = createMemo(() => available()?.snapshot.prs.created ?? [])
+  const reviewPRs = createMemo(() => available()?.snapshot.prs.assigned ?? [])
 
   const mineGroups = createMemo(() => groupByRepo(minePRs()))
   const reviewGroups = createMemo(() => groupByRepo(reviewPRs()))
 
-  const mineUnseenCount = createMemo(() => countUnseen(minePRs(), seenPRs() ?? {}))
-  const reviewUnseenCount = createMemo(() => countUnseen(reviewPRs(), seenPRs() ?? {}))
+  const mineUnseenCount = createMemo(() => countUnseen(minePRs(), available()?.snapshot.seen ?? {}))
+  const reviewUnseenCount = createMemo(() =>
+    countUnseen(reviewPRs(), available()?.snapshot.seen ?? {}),
+  )
 
   return (
     <Switch>
-      <Match when={setup.error?.message === "setup_needed"}>
+      <Match when={state().kind === "setup-needed"}>
         <Header />
         <SetupPrompt />
       </Match>
-      <Match when={(setup.loading || prsData.loading || seenPRs.loading) && !prsData.latest}>
-        <Header onRefresh={refresh} syncState={syncState.latest} />
+      <Match when={state().kind === "loading"}>
+        <Header onRefresh={refresh} />
         <div class="space-y-2 p-3" aria-label="Loading pull requests">
           <div class="h-9 animate-pulse rounded-md bg-[#161b22]" />
           <div class="h-13 animate-pulse rounded-md bg-[#161b22]" />
           <div class="h-13 animate-pulse rounded-md bg-[#161b22]" />
         </div>
       </Match>
-      <Match when={prsData.error?.message === "loading"}>
-        <Header onRefresh={refresh} syncState={syncState.latest} />
-        <div class="text-center py-12 text-sm text-[#8b949e]">Loading...</div>
-      </Match>
-      <Match when={setup.error || prsData.error || seenPRs.error}>
+      <Match when={unavailable()}>
         <Header />
-        <div class="text-center py-12 text-sm text-[#f85149]">
-          {(setup.error as Error)?.message ??
-            (prsData.error as Error)?.message ??
-            (seenPRs.error as Error)?.message}
-        </div>
+        <div class="text-center py-12 text-sm text-[#f85149]">{unavailable()?.message}</div>
       </Match>
-      <Match
-        when={prsData() && seenPRs() && { prs: prsData() as PRData, seen: seenPRs() as SeenPRs }}
-      >
+      <Match when={available()}>
         {(data) => {
           const activeGroups = createMemo(() =>
             activeTab() === "mine" ? mineGroups() : reviewGroups(),
@@ -87,8 +89,8 @@ function SidePanelContent() {
 
           return (
             <>
-              <Header onRefresh={refresh} syncState={syncState.latest} />
-              <Show when={syncState()?.status === "error"}>
+              <Header onRefresh={refresh} syncState={data().sync} />
+              <Show when={data().sync.status === "error"}>
                 <button
                   type="button"
                   onClick={refresh}
@@ -116,7 +118,7 @@ function SidePanelContent() {
                       {(group) => (
                         <RepoGroup
                           group={group}
-                          seenPRs={data().seen}
+                          seenPRs={data().snapshot.seen}
                           onMarkSeen={markSeen}
                           showApproved={showApproved()}
                         />

@@ -1,7 +1,7 @@
 import { createMemo, ErrorBoundary, For, Match, Show, Suspense, Switch } from "solid-js"
 import { getTimeAgo } from "@/lib/format"
 import { groupByRepo } from "@/lib/group-prs"
-import { usePRData } from "@/lib/use-pr-data"
+import { usePRSnapshot } from "@/lib/use-pr-snapshot"
 import type { PR, SeenPRs } from "@/types"
 
 function isUnseen(pr: PR, seenPRs: SeenPRs): boolean {
@@ -105,14 +105,17 @@ function DashboardList(props: {
 }
 
 function DashboardContent() {
-  const { setup, prsData, seenPRs, syncState, refresh, markSeen } = usePRData()
-  const dashboardData = createMemo(() => {
-    const prs = prsData()
-    const seen = seenPRs()
-    return prs && seen ? { prs, seen } : undefined
+  const { state, refresh, markSeen } = usePRSnapshot()
+  const available = createMemo(() => {
+    const current = state()
+    return current.kind === "available" ? current : undefined
+  })
+  const unavailable = createMemo(() => {
+    const current = state()
+    return current.kind === "unavailable" ? current : undefined
   })
   const lastSyncLabel = createMemo(() => {
-    const lastSyncedAt = syncState()?.lastSyncedAt
+    const lastSyncedAt = available()?.sync.lastSyncedAt
     return lastSyncedAt ? `Updated ${getTimeAgo(new Date(lastSyncedAt))}` : "Saved extension data"
   })
   const dateLabel = new Intl.DateTimeFormat(undefined, {
@@ -123,7 +126,7 @@ function DashboardContent() {
 
   return (
     <Switch>
-      <Match when={setup.error?.message === "setup_needed"}>
+      <Match when={state().kind === "setup-needed"}>
         <main class="grid min-h-screen place-items-center bg-[#010409] px-6">
           <div class="max-w-md text-center">
             <h1 class="m-0 text-2xl font-semibold text-[#f0f6fc]">Connect GitHub to begin</h1>
@@ -141,7 +144,7 @@ function DashboardContent() {
         </main>
       </Match>
 
-      <Match when={(setup.loading || prsData.loading || seenPRs.loading) && !prsData.latest}>
+      <Match when={state().kind === "loading"}>
         <main class="min-h-screen bg-[#010409] px-6 py-10">
           <div class="mx-auto max-w-6xl animate-pulse space-y-5" aria-label="Loading dashboard">
             <div class="h-20 rounded-xl bg-[#0d1117]" />
@@ -153,21 +156,13 @@ function DashboardContent() {
         </main>
       </Match>
 
-      <Match when={prsData.error?.message === "loading"}>
-        <main class="grid min-h-screen place-items-center bg-[#010409] text-sm text-[#8b949e]">
-          Fetching your pull requests for the first time…
-        </main>
-      </Match>
-
-      <Match when={setup.error || prsData.error || seenPRs.error}>
+      <Match when={unavailable()}>
         <main class="grid min-h-screen place-items-center bg-[#010409] px-6 text-sm text-[#ffb4ad]">
-          {(setup.error as Error)?.message ??
-            (prsData.error as Error)?.message ??
-            (seenPRs.error as Error)?.message}
+          {unavailable()?.message}
         </main>
       </Match>
 
-      <Match when={dashboardData()}>
+      <Match when={available()}>
         {(data) => (
           <main class="min-h-screen bg-[#010409] px-5 py-8 sm:px-8 sm:py-10">
             <div class="mx-auto max-w-6xl">
@@ -178,7 +173,7 @@ function DashboardContent() {
                     Pull request dashboard
                   </h1>
                   <p class="mt-2 mb-0 text-sm text-[#8b949e]">
-                    <Show when={syncState()?.status === "syncing"} fallback={lastSyncLabel()}>
+                    <Show when={data().sync.status === "syncing"} fallback={lastSyncLabel()}>
                       Syncing in the background…
                     </Show>
                   </p>
@@ -187,10 +182,10 @@ function DashboardContent() {
                   <button
                     type="button"
                     onClick={refresh}
-                    disabled={syncState()?.status === "syncing"}
+                    disabled={data().sync.status === "syncing"}
                     class="rounded-md border border-[#30363d] bg-[#21262d] px-3.5 py-2 text-sm font-medium text-[#f0f6fc] hover:bg-[#30363d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#58a6ff]"
                   >
-                    {syncState()?.status === "syncing" ? "Refreshing…" : "Refresh"}
+                    {data().sync.status === "syncing" ? "Refreshing…" : "Refresh"}
                   </button>
                   <button
                     type="button"
@@ -202,7 +197,7 @@ function DashboardContent() {
                 </div>
               </header>
 
-              <Show when={syncState()?.status === "error"}>
+              <Show when={data().sync.status === "error"}>
                 <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#6e3a36] bg-[#2d1618] px-4 py-3 text-sm text-[#ffb4ad]">
                   <span>Refresh failed. Your saved pull requests are still shown below.</span>
                   <button
@@ -219,8 +214,8 @@ function DashboardContent() {
                 <DashboardList
                   title="Created by you"
                   description="Open work you are driving"
-                  prs={data().prs.created}
-                  seenPRs={data().seen}
+                  prs={data().snapshot.prs.created}
+                  seenPRs={data().snapshot.seen}
                   emptyMessage="No open pull requests created by you."
                   showApproved
                   onMarkSeen={markSeen}
@@ -228,8 +223,8 @@ function DashboardContent() {
                 <DashboardList
                   title="Needs your review"
                   description="Assigned and review-requested work"
-                  prs={data().prs.assigned}
-                  seenPRs={data().seen}
+                  prs={data().snapshot.prs.assigned}
+                  seenPRs={data().snapshot.seen}
                   emptyMessage="No pull requests are waiting for your review."
                   onMarkSeen={markSeen}
                 />
