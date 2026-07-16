@@ -6,6 +6,7 @@ import {
   Switch,
   Match,
   For,
+  Show,
   onMount,
   onCleanup,
 } from "solid-js"
@@ -32,7 +33,7 @@ function countUnseen(prs: { id: number; updated_at: string }[], seenPRs: SeenPRs
 }
 
 function SidePanelContent() {
-  const { setup, prsData, seenPRs, refresh, markSeen } = usePRData()
+  const { setup, prsData, seenPRs, syncState, refresh, markSeen } = usePRData()
   const [activeTab, setActiveTab] = createSignal<Tab>("mine")
 
   onMount(() => {
@@ -55,12 +56,16 @@ function SidePanelContent() {
         <Header />
         <SetupPrompt />
       </Match>
-      <Match when={setup.loading || prsData.loading || seenPRs.loading}>
-        <Header onRefresh={refresh} />
-        <div class="text-center py-12 text-sm text-[#8b949e]">Loading...</div>
+      <Match when={(setup.loading || prsData.loading || seenPRs.loading) && !prsData.latest}>
+        <Header onRefresh={refresh} syncState={syncState.latest} />
+        <div class="space-y-2 p-3" aria-label="Loading pull requests">
+          <div class="h-9 animate-pulse rounded-md bg-[#161b22]" />
+          <div class="h-13 animate-pulse rounded-md bg-[#161b22]" />
+          <div class="h-13 animate-pulse rounded-md bg-[#161b22]" />
+        </div>
       </Match>
       <Match when={prsData.error?.message === "loading"}>
-        <Header onRefresh={refresh} />
+        <Header onRefresh={refresh} syncState={syncState.latest} />
         <div class="text-center py-12 text-sm text-[#8b949e]">Loading...</div>
       </Match>
       <Match when={setup.error || prsData.error || seenPRs.error}>
@@ -82,7 +87,17 @@ function SidePanelContent() {
 
           return (
             <>
-              <Header onRefresh={refresh} />
+              <Header onRefresh={refresh} syncState={syncState.latest} />
+              <Show when={syncState()?.status === "error"}>
+                <button
+                  type="button"
+                  onClick={refresh}
+                  class="flex w-full items-center justify-between border-0 border-b border-[#6e3a36] bg-[#2d1618] px-3 py-2 text-left text-xs text-[#ffb4ad] hover:bg-[#3b1d20]"
+                >
+                  <span class="truncate">Couldn’t refresh. Showing saved pull requests.</span>
+                  <span class="ml-2 shrink-0 font-semibold">Retry</span>
+                </button>
+              </Show>
               <TabBar
                 active={activeTab()}
                 onTabChange={setActiveTab}
@@ -91,7 +106,7 @@ function SidePanelContent() {
                 mineUnseenCount={mineUnseenCount()}
                 reviewUnseenCount={reviewUnseenCount()}
               />
-              <div id="pr-list" class="overflow-y-auto flex-1">
+              <div id="pr-list" class="min-h-0 flex-1 overflow-y-auto">
                 <Switch>
                   <Match when={activeGroups().length === 0}>
                     <EmptyState tab={activeTab()} />

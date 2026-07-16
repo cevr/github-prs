@@ -22,20 +22,38 @@ export function PRRow(props: PRRowProps) {
       target="_blank"
       rel="noopener noreferrer"
       data-pr-row
-      onMouseEnter={() => props.onMarkSeen(props.pr.id)}
-      class={`group/row flex items-center gap-2 h-9 px-3 text-[#e6edf3] no-underline transition-colors outline-none focus-visible:bg-[#1c2128] hover:bg-[#1c2128] ${isUnseen() ? "border-l-2 border-l-[#58a6ff]" : "border-l-2 border-l-transparent"}`}
+      onClick={() => props.onMarkSeen(props.pr.id)}
+      class="group/row grid min-h-13 grid-cols-[10px_minmax(0,1fr)_auto] items-start gap-x-2 px-3 py-2 text-[#f0f6fc] no-underline outline-none transition-colors hover:bg-[#161b22] focus-visible:bg-[#161b22] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#58a6ff]"
     >
-      <Show when={props.showApproved && props.pr.isApproved}>
-        <CheckCircleIcon class="shrink-0 text-[#3fb950]" />
-      </Show>
-      <span class="text-[#8b949e] text-xs shrink-0 w-10 tabular-nums">#{props.pr.number}</span>
-      <span class="text-sm truncate flex-1 min-w-0">{props.pr.title}</span>
-      <span
-        class="text-[#484f58] text-xs shrink-0 opacity-0 group-hover/row:opacity-100"
+      <span class="flex h-5 items-center justify-center" aria-hidden="true">
+        <Show
+          when={props.showApproved && props.pr.isApproved}
+          fallback={
+            <span
+              class={`size-1.5 rounded-full ${isUnseen() ? "bg-[#58a6ff]" : "bg-transparent"}`}
+            />
+          }
+        >
+          <CheckCircleIcon class="text-[#3fb950]" />
+        </Show>
+      </span>
+      <span class="min-w-0">
+        <span
+          class={`block truncate text-[13px] leading-5 ${isUnseen() ? "font-semibold" : "font-medium"}`}
+        >
+          {props.pr.title}
+        </span>
+        <span class="block truncate text-[11px] leading-4 text-[#8b949e]">
+          #{props.pr.number} · {props.pr.user.login}
+        </span>
+      </span>
+      <time
+        class="pt-0.5 text-[11px] tabular-nums text-[#8b949e]"
+        dateTime={props.pr.updated_at}
         title={props.pr.updated_at}
       >
         {getTimeAgo(new Date(props.pr.updated_at))}
-      </span>
+      </time>
     </a>
   )
 }

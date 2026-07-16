@@ -15,14 +15,15 @@ export function RepoGroup(props: RepoGroupProps) {
   const [open, setOpen] = createSignal(true)
 
   return (
-    <div class="border-t border-[#21262d] first:border-t-0">
+    <section class="border-t border-[#21262d] first:border-t-0">
       <button
         onClick={() => setOpen((v) => !v)}
-        class="flex items-center w-full px-3 py-1.5 text-[#8b949e] text-xs font-semibold uppercase tracking-wide bg-transparent border-none cursor-pointer hover:text-[#e6edf3] transition-colors"
+        class="flex min-h-9 w-full items-center bg-[#0d1117] px-3 text-xs font-medium text-[#b1bac4] transition-colors hover:bg-[#161b22] hover:text-[#f0f6fc] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#58a6ff]"
+        aria-expanded={open()}
       >
         <ChevronIcon open={open()} />
         <span class="ml-1.5 flex-1 text-left">{props.group.repo}</span>
-        <span class="text-[#484f58] font-normal normal-case tracking-normal">
+        <span class="rounded-full bg-[#21262d] px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-[#8b949e]">
           {props.group.prs.length}
         </span>
       </button>
@@ -38,6 +39,6 @@ export function RepoGroup(props: RepoGroupProps) {
           )}
         </For>
       </div>
-    </div>
+    </section>
   )
 }

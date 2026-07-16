@@ -1,32 +1,49 @@
 import { Show } from "solid-js"
+import type { SyncState } from "@/types"
+import { getTimeAgo } from "../lib/format"
 import { RefreshIcon, SettingsIcon } from "./icons"
 
 interface HeaderProps {
   onRefresh?: () => void
+  syncState?: SyncState
 }
 
 export function Header(props: HeaderProps) {
   return (
-    <div class="flex items-center justify-between px-3 py-2 border-b border-[#21262d]">
-      <span class="text-sm font-semibold text-[#e6edf3]">PRs</span>
-      <div class="flex gap-1">
+    <header class="flex min-h-12 items-center justify-between gap-3 border-b border-[#30363d] px-3.5 py-2">
+      <div class="min-w-0">
+        <div class="text-sm font-semibold text-[#f0f6fc]">Pull requests</div>
+        <Show when={props.syncState?.lastSyncedAt || props.syncState?.status === "syncing"}>
+          <div class="mt-0.5 truncate text-[11px] text-[#8b949e]" aria-live="polite">
+            {props.syncState?.status === "syncing"
+              ? "Syncing…"
+              : props.syncState?.lastSyncedAt
+                ? `Updated ${getTimeAgo(new Date(props.syncState.lastSyncedAt))}`
+                : ""}
+          </div>
+        </Show>
+      </div>
+      <div class="flex shrink-0 gap-1">
         <Show when={props.onRefresh}>
           <button
             onClick={props.onRefresh}
-            class="bg-transparent border-none text-[#8b949e] cursor-pointer p-1 rounded hover:text-[#e6edf3] hover:bg-[#21262d] transition-colors"
+            class="grid size-8 place-items-center rounded-md border-0 bg-transparent text-[#8b949e] transition-colors hover:bg-[#21262d] hover:text-[#f0f6fc] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#58a6ff]"
             title="Refresh"
+            aria-label="Refresh pull requests"
+            disabled={props.syncState?.status === "syncing"}
           >
-            <RefreshIcon />
+            <RefreshIcon class={props.syncState?.status === "syncing" ? "animate-spin" : ""} />
           </button>
         </Show>
         <button
           onClick={() => chrome.runtime.openOptionsPage()}
-          class="bg-transparent border-none text-[#8b949e] cursor-pointer p-1 rounded hover:text-[#e6edf3] hover:bg-[#21262d] transition-colors"
+          class="grid size-8 place-items-center rounded-md border-0 bg-transparent text-[#8b949e] transition-colors hover:bg-[#21262d] hover:text-[#f0f6fc] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#58a6ff]"
           title="Settings"
+          aria-label="Open settings"
         >
           <SettingsIcon />
         </button>
       </div>
-    </div>
+    </header>
   )
 }

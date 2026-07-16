@@ -1,4 +1,4 @@
-import type { PR, PRData, SeenPRs } from "./types"
+import type { PR, PRData, SeenPRs, SyncState } from "./types"
 
 const DEFAULT_CHECK_INTERVAL = 15
 
@@ -101,6 +101,8 @@ function dedupPRs(...lists: PR[][]): PR[] {
 }
 
 async function checkForUpdates() {
+  const { syncState: previousSyncState }: { syncState?: SyncState } =
+    await chrome.storage.local.get(["syncState"])
   try {
     const { token, username, hideInactivePRs } = await chrome.storage.sync.get([
       "token",
@@ -108,6 +110,14 @@ async function checkForUpdates() {
       "hideInactivePRs",
     ])
     if (!token || !username) return
+
+    await chrome.storage.local.set({
+      syncState: {
+        status: "syncing",
+        lastSyncedAt: previousSyncState?.lastSyncedAt,
+      } satisfies SyncState,
+    })
+    await chrome.runtime.sendMessage({ action: "syncStateChanged" }).catch(() => undefined)
 
     const { seenPRs = {} }: { seenPRs?: SeenPRs } = await chrome.storage.local.get(["seenPRs"])
 
@@ -186,10 +196,22 @@ async function checkForUpdates() {
     await chrome.storage.local.set({
       previousPRs: newPRs,
       seenPRs: updatedSeenPRs,
+      syncState: {
+        status: "idle",
+        lastSyncedAt: new Date().toISOString(),
+      } satisfies SyncState,
     })
     await chrome.runtime.sendMessage({ action: "prsUpdated" })
   } catch (error) {
     console.error("Error checking for updates:", error)
+    await chrome.storage.local.set({
+      syncState: {
+        status: "error",
+        lastSyncedAt: previousSyncState?.lastSyncedAt,
+        message: error instanceof Error ? error.message : "Unable to refresh pull requests",
+      } satisfies SyncState,
+    })
+    await chrome.runtime.sendMessage({ action: "syncStateChanged" }).catch(() => undefined)
   }
 }
 

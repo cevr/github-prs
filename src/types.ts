@@ -25,3 +25,9 @@ export interface OptionsData {
   checkInterval: number
   hideInactivePRs: boolean
 }
+
+export interface SyncState {
+  status: "idle" | "syncing" | "error"
+  lastSyncedAt?: string
+  message?: string
+}
