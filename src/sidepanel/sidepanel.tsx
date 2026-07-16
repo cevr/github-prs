@@ -11,8 +11,8 @@ import {
   onCleanup,
 } from "solid-js"
 import type { PRData, SeenPRs } from "@/types"
-import { usePRData } from "./lib/use-pr-data"
-import { groupByRepo } from "./lib/group-prs"
+import { usePRData } from "@/lib/use-pr-data"
+import { groupByRepo } from "@/lib/group-prs"
 import { setupKeyboardNav } from "./lib/keyboard"
 import { Header } from "./components/header"
 import { TabBar } from "./components/tab-bar"

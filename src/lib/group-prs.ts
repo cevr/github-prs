@@ -19,7 +19,6 @@ export function groupByRepo(prs: PR[]): RepoGroup[] {
     }
   }
 
-  // Sort groups by most recent PR update, PRs within each group also by recency
   const groups: RepoGroup[] = []
   for (const [repo, repoPrs] of map) {
     repoPrs.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())

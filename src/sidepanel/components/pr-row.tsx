@@ -1,6 +1,6 @@
 import { Show } from "solid-js"
 import type { PR, SeenPRs } from "@/types"
-import { getTimeAgo } from "../lib/format"
+import { getTimeAgo } from "@/lib/format"
 import { CheckCircleIcon } from "./icons"
 
 interface PRRowProps {

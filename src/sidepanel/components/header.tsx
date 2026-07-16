@@ -1,6 +1,6 @@
 import { Show } from "solid-js"
 import type { SyncState } from "@/types"
-import { getTimeAgo } from "../lib/format"
+import { getTimeAgo } from "@/lib/format"
 import { RefreshIcon, SettingsIcon } from "./icons"
 
 interface HeaderProps {

@@ -1,6 +1,6 @@
 import { createSignal, For } from "solid-js"
 import type { SeenPRs } from "@/types"
-import type { RepoGroup as RepoGroupData } from "../lib/group-prs"
+import type { RepoGroup as RepoGroupData } from "@/lib/group-prs"
 import { ChevronIcon } from "./icons"
 import { PRRow } from "./pr-row"
 

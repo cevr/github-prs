@@ -15,6 +15,9 @@
   "side_panel": {
     "default_path": "dist/sidepanel/sidepanel.html"
   },
+  "chrome_url_overrides": {
+    "newtab": "dist/dashboard/dashboard.html"
+  },
   "background": {
     "service_worker": "dist/background.js",
     "type": "module"
