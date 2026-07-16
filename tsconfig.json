@@ -9,11 +9,10 @@
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["chrome"]
+    "types": ["chrome", "node", "vite/client"]
   },
   "exclude": ["dist", "node_modules"]
 }
