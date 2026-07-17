@@ -1,5 +1,5 @@
 import { Context, DateTime, Effect, Layer, Result, Semaphore } from "effect"
-import { GitHubPRSource } from "./github-pr-source"
+import { GitHubApiError, GitHubPRSource } from "./github-pr-source"
 import type { PR, PRData, SeenPRs, SyncState } from "@/types"
 import { isAccountConfigured, TrackerSettingsService } from "@/settings/tracker-settings"
 import type { TrackerSettingsStorageError } from "@/settings/tracker-settings"
@@ -72,16 +72,31 @@ export const PRSynchronizationLive = Layer.effect(
       const previous = yield* publication.read()
       const settings = yield* settingsService.read()
       if (!isAccountConfigured(settings)) return
+      const startedAt = yield* DateTime.nowAsDate
 
       yield* publication.publish({
         kind: "sync-state",
         sync: {
           status: "syncing",
+          startedAt: startedAt.toISOString(),
           lastSyncedAt: previous.sync?.lastSyncedAt,
         },
       })
 
-      const fetched = yield* Effect.result(source.fetch(settings))
+      const fetched = yield* Effect.result(
+        source.fetch(settings).pipe(
+          Effect.timeoutOrElse({
+            duration: "45 seconds",
+            orElse: () =>
+              Effect.fail(
+                new GitHubApiError({
+                  operation: "refresh pull requests",
+                  message: "GitHub refresh timed out. Try again.",
+                }),
+              ),
+          }),
+        ),
+      )
       if (Result.isFailure(fetched)) {
         if (fetched.failure._tag === "GitHubAuthenticationError") {
           yield* settingsService.clearAccount()

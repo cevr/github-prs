@@ -1,12 +1,12 @@
-import { Effect } from "effect"
-import { describe, expect, it } from "effect-bun-test"
+import { Deferred, Effect } from "effect"
+import { describe, expect, it, yieldFibers } from "effect-bun-test"
 import { installRuntimeCommandHandler, subscribeToRuntimeEvents } from "./runtime-messaging"
 
 type Listener = (
   message: unknown,
   sender: chrome.runtime.MessageSender,
   respond: () => void,
-) => void
+) => boolean | void
 
 function installChrome() {
   return Effect.acquireRelease(
@@ -29,6 +29,14 @@ function installChrome() {
           for (const listener of listeners) listener(message, {}, () => responses++)
           return responses
         },
+        emitWithChannel(message: unknown) {
+          let responses = 0
+          let keepAlive = false
+          for (const listener of listeners) {
+            keepAlive = listener(message, {}, () => responses++) === true || keepAlive
+          }
+          return { keepAlive, responses: () => responses }
+        },
         listenerCount: () => listeners.size,
       }
     }),
@@ -44,7 +52,9 @@ describe("runtime messaging", () => {
     Effect.gen(function* () {
       const chrome = yield* installChrome()
       const commands: string[] = []
-      const remove = installRuntimeCommandHandler((command) => commands.push(command.action))
+      const remove = installRuntimeCommandHandler((command) => {
+        commands.push(command.action)
+      })
 
       expect(chrome.emit({ action: "markPRViewed" })).toBe(0)
       expect(chrome.emit({ action: "markPRViewed", prId: 42 })).toBe(1)
@@ -69,6 +79,22 @@ describe("runtime messaging", () => {
 
       remove()
       expect(chrome.listenerCount()).toBe(0)
+    }),
+  )
+
+  it.scopedLive("keeps the response channel open until a command finishes", () =>
+    Effect.gen(function* () {
+      const chrome = yield* installChrome()
+      const release = yield* Deferred.make<void>()
+      installRuntimeCommandHandler(() => Effect.runPromise(Deferred.await(release)))
+
+      const channel = chrome.emitWithChannel({ action: "checkNow" })
+      expect(channel.keepAlive).toBe(true)
+      expect(channel.responses()).toBe(0)
+
+      yield* Deferred.succeed(release, undefined)
+      yield* yieldFibers
+      expect(channel.responses()).toBe(1)
     }),
   )
 })

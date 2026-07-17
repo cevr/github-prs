@@ -178,6 +178,41 @@ describe("PR Synchronization", () => {
     }),
   )
 
+  it.effect("turns a stalled GitHub refresh into a retryable synchronization error", () =>
+    Effect.gen(function* () {
+      const harness = createHarness()
+      const fetchStarted = yield* Deferred.make<void>()
+      const source = Layer.succeed(
+        GitHubPRSource,
+        GitHubPRSource.of({
+          fetch: Effect.fn("GitHubPRSourceTest.fetch")(() =>
+            Effect.andThen(Deferred.succeed(fetchStarted, undefined), Effect.never),
+          ),
+        }),
+      )
+      const program = Effect.gen(function* () {
+        yield* TestClock.setTime(new Date("2026-07-16T13:00:00.000Z").getTime())
+        const refreshFiber = yield* Effect.forkChild(refreshPullRequests)
+        yield* Deferred.await(fetchStarted)
+
+        expect(harness.sync).toEqual({
+          status: "syncing",
+          startedAt: "2026-07-16T13:00:00.000Z",
+        })
+
+        yield* TestClock.adjust("1 minute")
+        yield* Fiber.join(refreshFiber)
+        expect(harness.sync).toEqual({
+          status: "error",
+          lastSyncedAt: undefined,
+          message: "GitHub refresh timed out. Try again.",
+        })
+      })
+
+      yield* program.pipe(Effect.provide(synchronizationLayer(source, harness)))
+    }),
+  )
+
   it.effect(
     "invalidates rejected credentials without replacing setup state with a sync error",
     () =>

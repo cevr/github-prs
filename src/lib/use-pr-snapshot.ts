@@ -37,6 +37,19 @@ function syncFailure(message: string): SyncState {
   return { status: "error", message }
 }
 
+const SYNC_TIMEOUT_MS = 60_000
+
+function recoverInterruptedSync(sync: SyncState): SyncState {
+  if (sync.status !== "syncing") return sync
+  const startedAt = sync.startedAt ? Date.parse(sync.startedAt) : Number.NaN
+  if (Number.isFinite(startedAt) && Date.now() - startedAt < SYNC_TIMEOUT_MS) return sync
+  return {
+    status: "error",
+    lastSyncedAt: sync.lastSyncedAt,
+    message: "The previous refresh was interrupted. Try again.",
+  }
+}
+
 export function usePRSnapshot(): PRSnapshotModel {
   const snapshotCache = createCache({
     lookup: () =>
@@ -61,7 +74,7 @@ export function usePRSnapshot(): PRSnapshotModel {
       if (!isAccountConfigured(settings)) return { kind: "setup-needed" }
 
       const prs = local.prs
-      const sync = local.sync ?? { status: "idle" }
+      const sync = recoverInterruptedSync(local.sync ?? { status: "idle" })
       if (!prs) {
         return sync.status === "error"
           ? {
@@ -109,7 +122,11 @@ export function usePRSnapshot(): PRSnapshotModel {
       setState({
         kind: "available",
         snapshot: current.snapshot,
-        sync: { status: "syncing", lastSyncedAt: current.sync.lastSyncedAt },
+        sync: {
+          status: "syncing",
+          startedAt: new Date().toISOString(),
+          lastSyncedAt: current.sync.lastSyncedAt,
+        },
       })
     }
     void Effect.runPromise(sendRuntimeCommand({ action: "checkNow" }))

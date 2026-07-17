@@ -148,6 +148,30 @@ describe("PR snapshot", () => {
     }),
   )
 
+  it.scopedLive("makes an interrupted persisted sync retryable", () =>
+    Effect.gen(function* () {
+      const mock = yield* installChrome({
+        sync: { username: "cevr" },
+        local: {
+          githubToken: "token",
+          previousPRs: emptyPRs,
+          seenPRs: {},
+          syncState: { status: "syncing", lastSyncedAt: "2026-07-16T12:00:00.000Z" },
+        },
+      })
+      const { model } = yield* createSnapshotModel()
+      yield* settle
+
+      expect(model.state()).toMatchObject({
+        kind: "available",
+        sync: { status: "error", message: "The previous refresh was interrupted. Try again." },
+      })
+
+      model.refresh()
+      expect(mock.messages).toEqual([{ action: "checkNow" }])
+    }),
+  )
+
   it.scopedLive("represents missing credentials without a magic error", () =>
     Effect.gen(function* () {
       yield* installChrome({ sync: {}, local: {} })

@@ -13,7 +13,7 @@ export const RuntimeEvent = Schema.Union([
 ])
 export type RuntimeEvent = typeof RuntimeEvent.Type
 
-type CommandHandler = (command: RuntimeCommand) => void
+type CommandHandler = (command: RuntimeCommand) => void | Promise<void>
 type EventHandler = (event: RuntimeEvent) => void
 
 function deliver(message: RuntimeCommand | RuntimeEvent) {
@@ -47,7 +47,11 @@ export function installRuntimeCommandHandler(handler: CommandHandler): () => voi
   ) => {
     const command = decode(message)
     if (Option.isNone(command)) return
-    handler(command.value)
+    const result = handler(command.value)
+    if (result !== undefined) {
+      void result.then(sendResponse, sendResponse)
+      return true
+    }
     sendResponse()
   }
 

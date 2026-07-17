@@ -1,6 +1,6 @@
 # Chrome Web Store Publisher Handoff
 
-This is the operator runbook for publishing GitHub PR Tracker 1.0.0. Complete the sections in order. The checked-in listing copy and validated assets are the source of truth; do not rewrite claims in the Developer Dashboard.
+This is the operator runbook for publishing GitHub PR Tracker 1.0.1. Complete the sections in order. The checked-in listing copy and validated assets are the source of truth; do not rewrite claims in the Developer Dashboard.
 
 ## 1. Register and secure the publisher
 
@@ -27,8 +27,8 @@ Official references: [register an account](https://developer.chrome.com/docs/web
    ```
 
 2. In the Developer Dashboard, choose **New item**.
-3. Upload `release/github-pr-tracker-1.0.0.zip`.
-4. Confirm the dashboard reads version `1.0.0` and Manifest V3.
+3. Upload `release/github-pr-tracker-1.0.1.zip`.
+4. Confirm the dashboard reads version `1.0.1` and Manifest V3.
 
 Do not upload `dist/` directly and do not rebuild the ZIP manually. The checked-in packaging script includes only the manifest, production build, and referenced icons.
 

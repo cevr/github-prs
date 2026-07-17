@@ -22,7 +22,7 @@ class BackgroundChromeError extends Schema.TaggedErrorClass<BackgroundChromeErro
 const storageReady = backgroundRuntime.runPromise(restrictTrackerStorageAccess)
 
 function run(program: Effect.Effect<void, unknown, PRSynchronization | TrackerSettingsService>) {
-  void storageReady
+  return storageReady
     .then(() => backgroundRuntime.runPromise(program))
     .catch((cause) => console.error("GitHub PR Tracker background operation failed:", cause))
 }
@@ -46,7 +46,7 @@ const setupAlarm = Effect.fn("Background.setupAlarm")((interval: number) =>
   ),
 )
 
-run(
+void run(
   Effect.tryPromise({
     try: () => chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }),
     catch: (cause) =>
@@ -59,23 +59,23 @@ run(
 )
 
 chrome.runtime.onInstalled.addListener(() => {
-  run(Effect.flatMap(initializeTrackerSettings, (settings) => setupAlarm(settings.checkInterval)))
+  void run(
+    Effect.flatMap(initializeTrackerSettings, (settings) => setupAlarm(settings.checkInterval)),
+  )
 })
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === "checkPRs") run(refreshPullRequests)
+  if (alarm.name === "checkPRs") void run(refreshPullRequests)
 })
 
 installRuntimeCommandHandler((command) => {
   if (command.action === "checkNow") {
-    run(refreshPullRequests)
-  } else if (command.action === "markPRViewed") {
-    run(markPullRequestSeen(command.prId))
-  } else {
-    run(
-      Effect.flatMap(readTrackerSettings, (settings) =>
-        Effect.andThen(setupAlarm(settings.checkInterval), refreshPullRequests),
-      ),
-    )
+    return run(refreshPullRequests)
   }
+  if (command.action === "markPRViewed") return run(markPullRequestSeen(command.prId))
+  return run(
+    Effect.flatMap(readTrackerSettings, (settings) =>
+      Effect.andThen(setupAlarm(settings.checkInterval), refreshPullRequests),
+    ),
+  )
 })

@@ -24,6 +24,7 @@ export type SeenPRs = typeof SeenPRs.Type
 
 export const SyncState = Schema.Struct({
   status: Schema.Literals(["idle", "syncing", "error"]),
+  startedAt: Schema.optionalKey(Schema.String),
   lastSyncedAt: Schema.optionalKey(Schema.String),
   message: Schema.optionalKey(Schema.String),
 })
