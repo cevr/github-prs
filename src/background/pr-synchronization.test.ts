@@ -114,7 +114,7 @@ function synchronizationLayer(
 }
 
 describe("PR Synchronization", () => {
-  it.effect("serializes refresh and mark-seen mutations without losing the seen timestamp", () =>
+  it.effect("serializes mark-seen locally without issuing another GitHub refresh", () =>
     Effect.gen(function* () {
       const harness = createHarness()
       const releaseFirst = yield* Deferred.make<void>()
@@ -142,7 +142,7 @@ describe("PR Synchronization", () => {
         yield* Fiber.join(refreshFiber)
         yield* Fiber.join(markSeenFiber)
 
-        expect(fetchCount).toBe(2)
+        expect(fetchCount).toBe(1)
         expect(harness.seen["1"]).toBe("2026-07-16T13:00:00.000Z")
         expect(harness.events.indexOf("seen")).toBeGreaterThan(harness.events.indexOf("commit"))
       })

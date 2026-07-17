@@ -12,8 +12,8 @@ export class GitHubAuthenticationError extends Schema.TaggedErrorClass<GitHubAut
 export class GitHubApiError extends Schema.TaggedErrorClass<GitHubApiError>()("GitHubApiError", {
   operation: Schema.String,
   message: Schema.String,
-  status: Schema.optionalKey(Schema.Number),
-  cause: Schema.optionalKey(Schema.Defect()),
+  status: Schema.optional(Schema.Number),
+  cause: Schema.optional(Schema.Defect()),
 }) {}
 
 const TimelineEvent = Schema.Struct({

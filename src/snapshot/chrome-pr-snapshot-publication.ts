@@ -39,18 +39,6 @@ const read = Effect.fn("PRSnapshotPublication.read")(function* () {
   return { prs: decoded.previousPRs, seen: decoded.seenPRs ?? {}, sync: decoded.syncState }
 })
 
-const recordSeen = Effect.fn("PRSnapshotPublication.recordSeen")(function* (
-  prId: number,
-  seenAt: string,
-) {
-  const stored = yield* read()
-  const seen: Record<string, string> = Object.assign({}, stored.seen)
-  seen[prId] = seenAt
-  yield* storageOperation("save seen pull requests", () =>
-    chrome.storage.local.set({ seenPRs: seen }),
-  )
-})
-
 function updateBadge(summary: { readonly total: number; readonly hasUnseen: boolean }) {
   if (summary.total === 0) {
     return Effect.tryPromise(() => chrome.action.setBadgeText({ text: "" })).pipe(Effect.asVoid)
@@ -69,6 +57,39 @@ function updateBadge(summary: { readonly total: number; readonly hasUnseen: bool
     { concurrency: "unbounded", discard: true },
   )
 }
+
+const recordSeen = Effect.fn("PRSnapshotPublication.recordSeen")(function* (
+  prId: number,
+  seenAt: string,
+) {
+  const stored = yield* read()
+  const seen: Record<string, string> = Object.assign({}, stored.seen)
+  seen[prId] = seenAt
+  yield* storageOperation("save seen pull requests", () =>
+    chrome.storage.local.set({ seenPRs: seen }),
+  )
+  yield* publishRuntimeEvent({ action: "prSnapshotChanged" })
+
+  const prs = stored.prs
+  if (!prs) return
+  const unique = new Map(prs.created.map((pr) => [pr.id, pr]))
+  for (const pr of prs.assigned) unique.set(pr.id, pr)
+  const hasUnseen = Array.from(unique.values()).some((pr) => {
+    const recordedAt = seen[pr.id.toString()]
+    return !recordedAt || new Date(pr.updated_at) > new Date(recordedAt)
+  })
+  yield* updateBadge({
+    total: prs.created.length + prs.assigned.length,
+    hasUnseen,
+  }).pipe(
+    Effect.catchCause((cause) =>
+      Effect.logWarning(
+        "Unable to update the extension badge after marking a pull request seen.",
+        cause,
+      ),
+    ),
+  )
+})
 
 const publish = Effect.fn("PRSnapshotPublication.publish")(function* (change: PRSnapshotChange) {
   if (change.kind === "sync-state") {

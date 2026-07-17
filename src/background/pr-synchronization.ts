@@ -144,7 +144,6 @@ export const PRSynchronizationLive = Layer.effect(
         Effect.gen(function* () {
           const seenAt = (yield* DateTime.nowAsDate).toISOString()
           yield* publication.recordSeen(prId, seenAt)
-          yield* synchronize()
         }),
       ),
     )

@@ -50,6 +50,54 @@ describe("Chrome PR Snapshot publication", () => {
     }),
   )
 
+  it.scopedLive("recovers snapshots written with explicit undefined optional metadata", () =>
+    Effect.gen(function* () {
+      const previousPRs = {
+        created: [
+          {
+            id: 1,
+            number: 42,
+            title: "Keep cached pull requests readable",
+            html_url: "https://github.com/acme/tracker/pull/42",
+            repository_url: "https://api.github.com/repos/acme/tracker",
+            updated_at: "2026-07-16T12:00:00.000Z",
+            user: { login: "cevr" },
+            isApproved: true,
+            lastUpdatedBy: undefined,
+          },
+        ],
+        assigned: [],
+      }
+      yield* installChrome({
+        storage: {
+          local: {
+            get: () =>
+              resolved({
+                previousPRs,
+                seenPRs: {},
+                syncState: {
+                  status: "error",
+                  lastSyncedAt: undefined,
+                  message: "GitHub could not refresh pull requests.",
+                },
+              }),
+          },
+        },
+      })
+
+      const snapshot = yield* Effect.flatMap(PRSnapshotPublication, (publication) =>
+        publication.read(),
+      ).pipe(Effect.provide(ChromePRSnapshotPublicationLive))
+
+      expect(snapshot.prs).toEqual(previousPRs)
+      expect(snapshot.sync).toEqual({
+        status: "error",
+        lastSyncedAt: undefined,
+        message: "GitHub could not refresh pull requests.",
+      })
+    }),
+  )
+
   it.scopedLive("publishes storage before signaling surfaces and projecting attention", () =>
     Effect.gen(function* () {
       const events: string[] = []

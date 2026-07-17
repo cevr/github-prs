@@ -8,8 +8,8 @@ export const PR = Schema.Struct({
   repository_url: Schema.String,
   updated_at: Schema.String,
   user: Schema.Struct({ login: Schema.String }),
-  isApproved: Schema.optionalKey(Schema.Boolean),
-  lastUpdatedBy: Schema.optionalKey(Schema.String),
+  isApproved: Schema.optional(Schema.Boolean),
+  lastUpdatedBy: Schema.optional(Schema.String),
 })
 export type PR = typeof PR.Type
 
@@ -24,8 +24,8 @@ export type SeenPRs = typeof SeenPRs.Type
 
 export const SyncState = Schema.Struct({
   status: Schema.Literals(["idle", "syncing", "error"]),
-  startedAt: Schema.optionalKey(Schema.String),
-  lastSyncedAt: Schema.optionalKey(Schema.String),
-  message: Schema.optionalKey(Schema.String),
+  startedAt: Schema.optional(Schema.String),
+  lastSyncedAt: Schema.optional(Schema.String),
+  message: Schema.optional(Schema.String),
 })
 export type SyncState = typeof SyncState.Type
