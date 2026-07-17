@@ -5,10 +5,12 @@
     "suspicious": "error",
     "perf": "error"
   },
-  "plugins": ["typescript", "import"],
+  "plugins": ["typescript", "import", "node"],
+  "jsPlugins": ["oxlint-plugin-effect/plugin"],
   "rules": {
     // TypeScript - no any
     "typescript/no-explicit-any": "error",
+    "typescript/no-unsafe-type-assertion": "error",
 
     // TypeScript - no non-null assertions
     "typescript/no-non-null-assertion": "error",
@@ -25,14 +27,34 @@
     "import/no-duplicates": "error",
     "import/no-unassigned-import": "off",
 
+    "node/no-process-env": "error",
+
     // Unused vars
-    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }]
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    "no-underscore-dangle": "off",
+    "no-nested-ternary": "error",
+    "complexity": ["error", 20],
+    "effect/noSpread": "error",
+    "effect/noSchemaStruct": "off",
+    "effect/noMakeUnsafe": "error",
+    "effect/noHandRolledTaggedUnion": "error",
+    "effect/noDynamicImports": "error",
+    "effect/noPromiseControlFlowInTests": "error",
+    "effect/noSleepInTests": "error"
   },
   "ignorePatterns": ["**/dist/**", "**/node_modules/**", "**/*.d.ts"],
   "overrides": [
     {
       "files": ["**/*.tsx"],
-      "rules": {}
+      "rules": {
+        "effect/noSpread": "off"
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "typescript/no-unsafe-type-assertion": "off"
+      }
     }
   ]
 }

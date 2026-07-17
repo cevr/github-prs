@@ -7,12 +7,85 @@
     "jsxImportSource": "@solidjs/web",
     "allowJs": true,
     "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["bun", "chrome", "node", "vite/client"]
+    "types": ["bun", "chrome", "node", "vite/client"],
+    "noEmit": true,
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "diagnostics": true,
+        "diagnosticsName": true,
+        "includeSuggestionsInTsc": true,
+        "ignoreEffectSuggestionsInTscExitCode": false,
+        "ignoreEffectWarningsInTscExitCode": false,
+        "ignoreEffectErrorsInTscExitCode": false,
+        "diagnosticSeverity": {
+          "anyUnknownInErrorContext": "error",
+          "asyncFunction": "error",
+          "catchAllToMapError": "error",
+          "catchUnfailableEffect": "error",
+          "classSelfMismatch": "error",
+          "effectFnOpportunity": "error",
+          "effectInFailure": "error",
+          "effectInVoidSuccess": "error",
+          "floatingEffect": "error",
+          "globalConsoleInEffect": "error",
+          "globalDateInEffect": "error",
+          "globalErrorInEffectCatch": "error",
+          "globalErrorInEffectFailure": "error",
+          "globalFetchInEffect": "error",
+          "globalRandomInEffect": "error",
+          "globalTimersInEffect": "error",
+          "instanceOfSchema": "error",
+          "leakingRequirements": "error",
+          "missingEffectContext": "error",
+          "missingEffectError": "error",
+          "missingEffectServiceDependency": "error",
+          "missingLayerContext": "error",
+          "missingReturnYieldStar": "error",
+          "missingStarInYieldEffectGen": "error",
+          "multipleEffectProvide": "error",
+          "nestedEffectGenYield": "error",
+          "newPromise": "error",
+          "nonObjectEffectServiceType": "error",
+          "outdatedApi": "error",
+          "preferSchemaOverJson": "error",
+          "returnEffectInGen": "error",
+          "schemaStructWithTag": "error",
+          "schemaSyncInEffect": "error",
+          "schemaUnionOfLiterals": "error",
+          "serviceNotAsClass": "error",
+          "strictEffectProvide": "error",
+          "tryCatchInEffectGen": "error",
+          "unknownInEffectCatch": "error",
+          "unnecessaryArrowBlock": "error",
+          "unnecessaryEffectGen": "error",
+          "unnecessaryFailYieldableError": "error"
+        },
+        "keyPatterns": [
+          { "target": "service", "pattern": "default", "skipLeadingPath": ["src/"] },
+          { "target": "error", "pattern": "default", "skipLeadingPath": ["src/"] }
+        ],
+        "overrides": [
+          {
+            "include": ["**/*.test.ts", "**/*.test.tsx"],
+            "options": {
+              "diagnosticSeverity": {
+                "strictEffectProvide": "off"
+              }
+            }
+          }
+        ]
+      }
+    ]
   },
   "exclude": ["dist", "node_modules"]
 }
