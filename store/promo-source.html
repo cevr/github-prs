@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GitHub PR Tracker promotional tile</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 440px;
+        height: 280px;
+        margin: 0;
+        overflow: hidden;
+        color: #f0f6fc;
+        background:
+          radial-gradient(circle at 90% 10%, rgb(31 111 235 / 32%), transparent 42%), #010409;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      main {
+        position: relative;
+        display: grid;
+        height: 100%;
+        padding: 34px 36px;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        align-self: start;
+      }
+
+      img {
+        width: 48px;
+        height: 48px;
+      }
+
+      .product {
+        margin: 0;
+        color: #b1bac4;
+        font-size: 15px;
+        font-weight: 650;
+      }
+
+      h1 {
+        max-width: 330px;
+        margin: 22px 0 0;
+        font-size: 34px;
+        line-height: 1.05;
+        letter-spacing: -1.1px;
+      }
+
+      .accent {
+        color: #58a6ff;
+      }
+
+      footer {
+        display: flex;
+        gap: 8px;
+        align-self: end;
+      }
+
+      .pill {
+        padding: 7px 10px;
+        border: 1px solid #30363d;
+        border-radius: 999px;
+        background: rgb(13 17 23 / 84%);
+        color: #b1bac4;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .dot {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-right: 6px;
+        border-radius: 50%;
+        background: #3fb950;
+        vertical-align: 1px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="../icons/icon128.png" alt="" />
+        <p class="product">GitHub PR Tracker</p>
+      </header>
+      <h1>Your pull requests.<br /><span class="accent">One glance.</span></h1>
+      <footer>
+        <span class="pill"><span class="dot"></span>Created by you</span>
+        <span class="pill">Needs your review</span>
+      </footer>
+    </main>
+  </body>
+</html>

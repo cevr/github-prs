@@ -1,15 +1,16 @@
 {
   "manifest_version": 3,
   "name": "GitHub PR Tracker",
-  "version": "1.0",
-  "description": "Track your active GitHub PRs with notifications",
+  "version": "1.0.0",
+  "description": "Track authored and review-requested GitHub pull requests in a fast side panel and new-tab dashboard.",
+  "minimum_chrome_version": "114",
   "permissions": ["storage", "alarms", "sidePanel"],
   "host_permissions": ["https://api.github.com/*"],
   "action": {
     "default_icon": {
-      "16": "icon.png",
-      "48": "icon.png",
-      "128": "icon.png"
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
     }
   },
   "side_panel": {
@@ -23,9 +24,9 @@
     "type": "module"
   },
   "icons": {
-    "16": "icon.png",
-    "48": "icon.png",
-    "128": "icon.png"
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   },
   "options_page": "dist/options/options.html"
 }

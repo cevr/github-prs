@@ -1,11 +1,13 @@
 {
   "name": "github-prs",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "package:extension": "bun run build && bun scripts/package-extension.ts",
+    "validate:marketplace": "bun scripts/validate-marketplace.ts",
     "test": "bun test",
     "typecheck": "tsgo --noEmit",
     "lint": "oxlint",

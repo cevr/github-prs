@@ -1,21 +1,28 @@
-# bun-react-tailwind-template
+# GitHub PR Tracker
 
-To install dependencies:
+A client-only Chrome extension that keeps authored and review-requested GitHub pull requests easy to scan in the side panel and a new-tab dashboard.
+
+## Privacy
+
+The GitHub token stays in local Chrome storage and is sent only to **api.github.com**. The extension has no developer backend, analytics, advertising, or data sale. See the complete [privacy policy](./PRIVACY.md).
+
+## Development
 
 ```bash
 bun install
+bun run dev
 ```
 
-To start a development server:
+Run the full local gate:
 
 ```bash
-bun dev
+bun run gate
 ```
 
-To run for production:
+Build the Chrome Web Store upload ZIP:
 
 ```bash
-bun start
+bun run package:extension
 ```
 
-This project was created using `bun init` in bun v1.2.12. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
+The validated upload appears in **release/github-pr-tracker-VERSION.zip**.
