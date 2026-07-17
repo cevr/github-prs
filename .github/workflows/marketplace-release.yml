@@ -3,9 +3,12 @@ name: Marketplace release
 on:
   pull_request:
     paths:
+      - ".changeset/**"
       - ".github/workflows/marketplace-release.yml"
+      - ".github/workflows/release.yml"
       - "icons/**"
       - "scripts/package-extension.ts"
+      - "scripts/sync-manifest-version.ts"
       - "scripts/validate-marketplace.ts"
       - "src/**"
       - "store/**"

@@ -1,0 +1,211 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Create or update Version Packages PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      version-changed: ${{ steps.version-change.outputs.changed }}
+      version: ${{ steps.version-change.outputs.version }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect a merged version bump
+        id: version-change
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          current_version=$(jq -r '.version' package.json)
+          previous_version=""
+          if [[ ! "$BEFORE_SHA" =~ ^0+$ ]] && git cat-file -e "$BEFORE_SHA:package.json" 2>/dev/null; then
+            previous_version=$(git show "$BEFORE_SHA:package.json" | jq -r '.version')
+          fi
+          if [[ -n "$previous_version" && "$previous_version" != "$current_version" ]]; then
+            changed=true
+          else
+            changed=false
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "version=$current_version" >> "$GITHUB_OUTPUT"
+          echo "Version: ${previous_version:-unknown} -> $current_version; changed=$changed"
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Create or update Version Packages PR
+        uses: changesets/action@v1
+        with:
+          version: bun run version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  marketplace:
+    name: Submit Chrome Web Store release
+    needs: version
+    if: needs.version.outputs.version-changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: marketplace
+    permissions:
+      contents: read
+    env:
+      CWS_EXTENSION_ID: jgkofdbcjfhghgbpanbdlpikdhenfdgi
+      CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+      CWS_SERVICE_ACCOUNT_JSON: ${{ secrets.CWS_SERVICE_ACCOUNT_JSON }}
+      RELEASE_VERSION: ${{ needs.version.outputs.version }}
+
+    steps:
+      - name: Check marketplace configuration
+        id: configuration
+        run: |
+          set -euo pipefail
+          if [[ -n "$CWS_PUBLISHER_ID" && -n "$CWS_SERVICE_ACCOUNT_JSON" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Chrome Web Store release skipped"
+              echo
+              echo "Add CWS_PUBLISHER_ID and CWS_SERVICE_ACCOUNT_JSON to the marketplace environment."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Check out repository
+        if: steps.configuration.outputs.configured == 'true'
+        uses: actions/checkout@v7
+
+      - name: Set up Bun
+        if: steps.configuration.outputs.configured == 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        if: steps.configuration.outputs.configured == 'true'
+        run: bun install --frozen-lockfile
+
+      - name: Run project gate
+        if: steps.configuration.outputs.configured == 'true'
+        run: bun run gate
+
+      - name: Build and validate Chrome Web Store ZIP
+        if: steps.configuration.outputs.configured == 'true'
+        run: bun run release
+
+      - name: Upload marketplace release artifact
+        if: steps.configuration.outputs.configured == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: github-pr-tracker-marketplace-${{ needs.version.outputs.version }}
+          path: release/github-pr-tracker-${{ needs.version.outputs.version }}.zip
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Authenticate to Google Cloud
+        if: steps.configuration.outputs.configured == 'true'
+        id: google-auth
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.CWS_SERVICE_ACCOUNT_JSON }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          create_credentials_file: false
+
+      - name: Upload and submit extension
+        if: steps.configuration.outputs.configured == 'true'
+        env:
+          CWS_ACCESS_TOKEN: ${{ steps.google-auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+
+          item="publishers/$CWS_PUBLISHER_ID/items/$CWS_EXTENSION_ID"
+          api_url="https://chromewebstore.googleapis.com/v2/$item"
+          zip_path="release/github-pr-tracker-$RELEASE_VERSION.zip"
+
+          request() {
+            local response
+            if ! response=$(curl --silent --show-error --fail-with-body "$@"); then
+              printf '%s\n' "$response" >&2
+              return 1
+            fi
+            printf '%s' "$response"
+          }
+
+          status=$(request \
+            --header "Authorization: Bearer $CWS_ACCESS_TOKEN" \
+            "$api_url:fetchStatus")
+          if jq -e --arg version "$RELEASE_VERSION" '
+            [
+              .publishedItemRevisionStatus.distributionChannels[]?.crxVersion,
+              .submittedItemRevisionStatus.distributionChannels[]?.crxVersion
+            ] | any(. == $version)
+          ' <<< "$status" >/dev/null; then
+            echo "Chrome Web Store already contains version $RELEASE_VERSION; skipping."
+            exit 0
+          fi
+
+          upload=$(request \
+            --request POST \
+            --header "Authorization: Bearer $CWS_ACCESS_TOKEN" \
+            --header "Content-Type: application/zip" \
+            --data-binary "@$zip_path" \
+            "https://chromewebstore.googleapis.com/upload/v2/$item:upload")
+          upload_state=$(jq -r '.uploadState // "UPLOAD_STATE_UNSPECIFIED"' <<< "$upload")
+
+          if [[ "$upload_state" == "IN_PROGRESS" ]]; then
+            for attempt in {1..12}; do
+              sleep 10
+              status=$(request \
+                --header "Authorization: Bearer $CWS_ACCESS_TOKEN" \
+                "$api_url:fetchStatus")
+              upload_state=$(jq -r '.lastAsyncUploadState // "UPLOAD_STATE_UNSPECIFIED"' <<< "$status")
+              echo "Upload processing state: $upload_state (attempt $attempt/12)"
+              [[ "$upload_state" != "IN_PROGRESS" ]] && break
+            done
+          fi
+
+          if [[ "$upload_state" != "SUCCEEDED" ]]; then
+            echo "Chrome Web Store upload did not succeed: $upload_state" >&2
+            exit 1
+          fi
+
+          publish=$(request \
+            --request POST \
+            --header "Authorization: Bearer $CWS_ACCESS_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data '{"publishType":"DEFAULT_PUBLISH","skipReview":false,"blockOnWarnings":true}' \
+            "$api_url:publish")
+          publish_state=$(jq -r '.state // "ITEM_STATE_UNSPECIFIED"' <<< "$publish")
+          {
+            echo "## Chrome Web Store release submitted"
+            echo
+            echo "- Extension: $CWS_EXTENSION_ID"
+            echo "- Version: $RELEASE_VERSION"
+            echo "- State: $publish_state"
+          } >> "$GITHUB_STEP_SUMMARY"
