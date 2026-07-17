@@ -4,10 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "changeset": "changeset",
     "dev": "vite",
     "build": "vite build",
     "package:extension": "bun run build && bun scripts/package-extension.ts",
     "validate:marketplace": "bun scripts/validate-marketplace.ts",
+    "version": "changeset version && bun scripts/sync-manifest-version.ts",
+    "release": "bun run package:extension && bun run validate:marketplace",
     "test": "bun test",
     "typecheck": "tsgo --noEmit",
     "lint": "oxlint",
@@ -23,6 +26,8 @@
     "solid-js": "2.0.0-beta.19"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "0.7.0",
+    "@changesets/cli": "2.31.1",
     "@effect/tsgo": "0.23.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/bun": "^1.3.14",
