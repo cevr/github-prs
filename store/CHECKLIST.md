@@ -21,7 +21,6 @@
 
 ## Developer Dashboard
 
-- [x] Prepare the exact registration, listing, privacy, distribution, test, and reviewer handoff in **store/PUBLISHER_HANDOFF.md**.
 - [ ] Register the publisher and complete the one-time developer registration payment.
 - [ ] Enable two-step verification on the publishing Google Account.
 - [ ] Upload **release/github-pr-tracker-1.0.2.zip**.
