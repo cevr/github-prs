@@ -5,6 +5,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      cancel_submission:
+        description: Cancel the active Web Store review before uploading this version
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -79,6 +85,7 @@ jobs:
       CWS_EXTENSION_ID: jgkofdbcjfhghgbpanbdlpikdhenfdgi
       CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
       CWS_SERVICE_ACCOUNT_JSON: ${{ secrets.CWS_SERVICE_ACCOUNT_JSON }}
+      CWS_CANCEL_SUBMISSION: ${{ inputs.cancel_submission || false }}
       RELEASE_VERSION: ${{ needs.version.outputs.version }}
 
     steps:
@@ -157,6 +164,14 @@ jobs:
             fi
             printf '%s' "$response"
           }
+
+          if [[ "$CWS_CANCEL_SUBMISSION" == "true" ]]; then
+            request \
+              --request POST \
+              --header "Authorization: Bearer $CWS_ACCESS_TOKEN" \
+              "$api_url:cancelSubmission" >/dev/null
+            echo "Canceled the active Chrome Web Store submission."
+          fi
 
           status=$(request \
             --header "Authorization: Bearer $CWS_ACCESS_TOKEN" \

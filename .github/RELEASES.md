@@ -24,6 +24,9 @@ After adding the secrets for the first time, run the **Release** workflow manual
 current version. Manual runs are also the retry path for transient Web Store failures; the workflow
 checks submitted and published versions before uploading, so reruns are idempotent.
 
+If Chrome reports that an older version is already in review, manually run **Release** with
+`cancel_submission` enabled. Cancellation is never performed by an ordinary `main` release.
+
 ## Release flow
 
 1. Add a changeset with `bun run changeset` for each user-facing change.
