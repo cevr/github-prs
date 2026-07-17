@@ -36,6 +36,7 @@ interface Entry<A> {
   readonly setStatus: (status: CacheStatus) => CacheStatus
   readonly invalidate: Effect.Effect<void>
   refreshPromise?: Promise<void>
+  queuedRefreshPromise?: Promise<void>
 }
 
 function toError(cause: Cause.Cause<unknown>): Error {
@@ -92,22 +93,33 @@ export function createCache<Args extends Array<unknown>, A, E, R>(
   const status = (...args: Args): Accessor<CacheStatus> => entryFor(args).status
   const refresh = (...args: Args): Promise<void> => {
     const entry = entryFor(args)
-    if (entry.refreshPromise) return entry.refreshPromise
-
-    const currentStatus = entry.status().status
-    entry.setStatus({
-      status:
-        currentStatus === "ready" || currentStatus === "refreshing" ? "refreshing" : "loading",
-    })
-    Effect.runSync(entry.invalidate)
-    refreshSolid(entry.data)
-    const promise = resolve(entry.data)
-      .then(() => undefined)
-      .finally(() => {
-        entry.refreshPromise = undefined
+    const startRefresh = () => {
+      const currentStatus = entry.status().status
+      entry.setStatus({
+        status:
+          currentStatus === "ready" || currentStatus === "refreshing" ? "refreshing" : "loading",
       })
-    entry.refreshPromise = promise
-    return promise
+      Effect.runSync(entry.invalidate)
+      refreshSolid(entry.data)
+      const promise = resolve(entry.data)
+        .then(() => undefined)
+        .finally(() => {
+          if (entry.refreshPromise === promise) entry.refreshPromise = undefined
+        })
+      entry.refreshPromise = promise
+      return promise
+    }
+
+    if (!entry.refreshPromise) return startRefresh()
+    if (entry.queuedRefreshPromise) return entry.queuedRefreshPromise
+
+    const runQueuedRefresh = () => {
+      entry.queuedRefreshPromise = undefined
+      return startRefresh()
+    }
+    const queued = entry.refreshPromise.then(runQueuedRefresh, runQueuedRefresh)
+    entry.queuedRefreshPromise = queued
+    return queued
   }
 
   return { get, status, refresh }

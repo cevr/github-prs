@@ -1,6 +1,6 @@
 import { Deferred, Effect, Schema } from "effect"
 import { createRoot, flush, NotReadyError, resolve } from "@solidjs/signals"
-import { describe, expect, it } from "effect-bun-test"
+import { describe, expect, it, yieldFibers } from "effect-bun-test"
 import { createCache } from "./cache"
 
 class CacheLoadError extends Schema.TaggedErrorClass<CacheLoadError>()("CacheLoadError", {
@@ -117,6 +117,50 @@ describe("cache", () => {
 
       expect(data()).toBe("recovered")
       expect(status()).toEqual({ status: "ready" })
+    }).pipe(Effect.scoped),
+  )
+
+  it.live("replays a refresh requested while revalidation is in flight", () =>
+    Effect.gen(function* () {
+      const firstRefresh = yield* Deferred.make<string>()
+      const finalRefresh = yield* Deferred.make<string>()
+      let calls = 0
+      let dispose: (() => void) | undefined
+
+      const cache = createRoot((rootDispose) => {
+        dispose = rootDispose
+        return createCache({
+          lookup: () =>
+            Effect.suspend(() => {
+              calls++
+              if (calls === 1) return Effect.succeed("idle")
+              return Deferred.await(calls === 2 ? firstRefresh : finalRefresh)
+            }),
+          runner: { runPromise: Effect.runPromise },
+        })
+      })
+      yield* Effect.addFinalizer(() => Effect.sync(() => dispose?.()))
+
+      const data = cache.get()
+      yield* Effect.promise(() => resolve(data))
+      expect(data()).toBe("idle")
+
+      const started = cache.refresh()
+      flush()
+      const completed = cache.refresh()
+      expect(calls).toBe(2)
+
+      yield* Deferred.succeed(firstRefresh, "syncing")
+      yield* yieldFibers
+      flush()
+      expect(calls).toBe(3)
+
+      yield* Deferred.succeed(finalRefresh, "error")
+      yield* Effect.all([Effect.promise(() => started), Effect.promise(() => completed)], {
+        concurrency: "unbounded",
+      })
+      flush()
+      expect(data()).toBe("error")
     }).pipe(Effect.scoped),
   )
 })

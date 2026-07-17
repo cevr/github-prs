@@ -24,7 +24,7 @@
 - [x] Prepare the exact registration, listing, privacy, distribution, test, and reviewer handoff in **store/PUBLISHER_HANDOFF.md**.
 - [ ] Register the publisher and complete the one-time developer registration payment.
 - [ ] Enable two-step verification on the publishing Google Account.
-- [ ] Upload **release/github-pr-tracker-1.0.1.zip**.
+- [ ] Upload **release/github-pr-tracker-1.0.2.zip**.
 - [ ] Paste the copy and permission justifications from **store/LISTING.md**.
 - [ ] Upload listing assets.
 - [ ] Enter the public privacy policy URL from **store/LISTING.md** after the policy commit is pushed.
