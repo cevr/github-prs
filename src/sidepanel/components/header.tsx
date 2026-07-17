@@ -9,17 +9,21 @@ interface HeaderProps {
 }
 
 export function Header(props: HeaderProps) {
+  const syncLabel = () => {
+    if (props.syncState?.status === "syncing") return "Syncing…"
+    if (props.syncState?.lastSyncedAt) {
+      return `Updated ${getTimeAgo(new Date(props.syncState.lastSyncedAt))}`
+    }
+    return ""
+  }
+
   return (
     <header class="flex min-h-12 items-center justify-between gap-3 border-b border-[#30363d] px-3.5 py-2">
       <div class="min-w-0">
         <div class="text-sm font-semibold text-[#f0f6fc]">Pull requests</div>
         <Show when={props.syncState?.lastSyncedAt || props.syncState?.status === "syncing"}>
           <div class="mt-0.5 truncate text-[11px] text-[#8b949e]" aria-live="polite">
-            {props.syncState?.status === "syncing"
-              ? "Syncing…"
-              : props.syncState?.lastSyncedAt
-                ? `Updated ${getTimeAgo(new Date(props.syncState.lastSyncedAt))}`
-                : ""}
+            {syncLabel()}
           </div>
         </Show>
       </div>

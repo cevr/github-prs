@@ -8,13 +8,17 @@ import type { PR, SeenPRs } from "@/types"
 function DashboardList(props: {
   title: string
   description: string
-  prs: PR[]
+  prs: readonly PR[]
   seenPRs: SeenPRs
   emptyMessage: string
   showApproved?: boolean
   onMarkSeen: (prId: number) => void
 }) {
   const collection = createMemo(() => createPRCollection(props.prs, props.seenPRs))
+  const attentionColor = (unseen: boolean, approved: boolean | undefined) => {
+    if (props.showApproved && approved) return "bg-[#3fb950]"
+    return unseen ? "bg-[#58a6ff]" : "bg-[#484f58]"
+  }
 
   return (
     <section class="overflow-hidden rounded-xl border border-[#30363d] bg-[#0d1117]">
@@ -60,13 +64,7 @@ function DashboardList(props: {
                     >
                       <span class="flex h-5 items-center justify-center" aria-hidden="true">
                         <span
-                          class={`size-2 rounded-full ${
-                            props.showApproved && item.pr.isApproved
-                              ? "bg-[#3fb950]"
-                              : item.unseen
-                                ? "bg-[#58a6ff]"
-                                : "bg-[#484f58]"
-                          }`}
+                          class={`size-2 rounded-full ${attentionColor(item.unseen, item.pr.isApproved)}`}
                         />
                       </span>
                       <span class="min-w-0">

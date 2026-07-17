@@ -1,58 +1,47 @@
+import { Context, DateTime, Effect, Layer, Result, Semaphore } from "effect"
+import { GitHubPRSource } from "./github-pr-source"
 import type { PR, PRData, SeenPRs, SyncState } from "@/types"
-import type { TrackerSettings } from "@/lib/tracker-settings"
-import { isAccountConfigured } from "@/lib/tracker-settings"
-import type { PRSource } from "./github-pr-source"
-import { GitHubAuthenticationError } from "./github-pr-source"
+import { isAccountConfigured, TrackerSettingsService } from "@/settings/tracker-settings"
+import type { TrackerSettingsStorageError } from "@/settings/tracker-settings"
+import { PRSnapshotPublication } from "@/snapshot/pr-snapshot-publication"
+import type { PRSnapshotPublicationError } from "@/snapshot/pr-snapshot-publication"
 
-export interface PRSynchronizationStore {
-  read(): Promise<{ seen: SeenPRs; sync?: SyncState }>
-  setSeen(seen: SeenPRs): Promise<void>
-  setSync(sync: SyncState): Promise<void>
-  commit(prs: PRData, seen: SeenPRs, sync: SyncState): Promise<void>
-}
+export class PRSynchronization extends Context.Service<
+  PRSynchronization,
+  {
+    readonly refresh: () => Effect.Effect<
+      void,
+      PRSnapshotPublicationError | TrackerSettingsStorageError
+    >
+    readonly markSeen: (
+      prId: number,
+    ) => Effect.Effect<void, PRSnapshotPublicationError | TrackerSettingsStorageError>
+  }
+>()("@github-prs/PRSynchronization") {}
 
-export interface PRSynchronizationEffects {
-  syncStateChanged(): Promise<void>
-  prsUpdated(): Promise<void>
-  updateBadge(summary: { total: number; hasUnseen: boolean }): Promise<void>
-}
-
-export interface PRSynchronizationSettings {
-  read(): Promise<TrackerSettings>
-  clearAccount(): Promise<void>
-}
-
-export interface PRSynchronization {
-  refresh(): Promise<void>
-  markSeen(prId: number): Promise<void>
-}
-
-interface Dependencies {
-  source: PRSource
-  store: PRSynchronizationStore
-  effects: PRSynchronizationEffects
-  settings: PRSynchronizationSettings
-  now?: () => Date
-}
-
-function uniquePRs(prs: PRData): PR[] {
+function uniquePRs(prs: PRData): readonly PR[] {
   const unique = new Map<number, PR>()
-  for (const pr of [...prs.created, ...prs.assigned]) unique.set(pr.id, pr)
-  return [...unique.values()]
+  for (const pr of prs.created) unique.set(pr.id, pr)
+  for (const pr of prs.assigned) unique.set(pr.id, pr)
+  return Array.from(unique.values())
 }
 
 function filterInactive(prs: PRData, now: Date): PRData {
   const activeSince = new Date(now)
   activeSince.setMonth(activeSince.getMonth() - 1)
   const active = (pr: PR) => new Date(pr.updated_at) >= activeSince
-  return { created: prs.created.filter(active), assigned: prs.assigned.filter(active) }
+  return {
+    created: prs.created.filter(active),
+    assigned: prs.assigned.filter(active),
+  }
 }
 
 function reconcileSeen(prs: readonly PR[], seen: SeenPRs, username: string): SeenPRs {
   const trackedIds = new Set(prs.map((pr) => pr.id.toString()))
-  const reconciled = Object.fromEntries(
-    Object.entries(seen).filter(([prId]) => trackedIds.has(prId)),
-  )
+  const reconciled: Record<string, string> = {}
+  for (const [prId, seenAt] of Object.entries(seen)) {
+    if (trackedIds.has(prId)) reconciled[prId] = seenAt
+  }
 
   for (const pr of prs) {
     const prId = pr.id.toString()
@@ -71,69 +60,84 @@ function hasUnseen(prs: readonly PR[], seen: SeenPRs): boolean {
   })
 }
 
-export function createPRSynchronization({
-  source,
-  store,
-  effects,
-  settings,
-  now = () => new Date(),
-}: Dependencies): PRSynchronization {
-  let queue: Promise<void> = Promise.resolve()
+export const PRSynchronizationLive = Layer.effect(
+  PRSynchronization,
+  Effect.gen(function* () {
+    const source = yield* GitHubPRSource
+    const publication = yield* PRSnapshotPublication
+    const settingsService = yield* TrackerSettingsService
+    const semaphore = yield* Semaphore.make(1)
 
-  const enqueue = (operation: () => Promise<void>): Promise<void> => {
-    const result = queue.then(operation, operation)
-    queue = result.catch(() => undefined)
-    return result
-  }
+    const synchronize = Effect.fn("PRSynchronization.synchronize")(function* () {
+      const previous = yield* publication.read()
+      const settings = yield* settingsService.read()
+      if (!isAccountConfigured(settings)) return
 
-  const synchronize = async () => {
-    const previous = await store.read()
-    try {
-      const trackerSettings = await settings.read()
-      if (!isAccountConfigured(trackerSettings)) return
-
-      await store.setSync({
-        status: "syncing",
-        lastSyncedAt: previous.sync?.lastSyncedAt,
+      yield* publication.publish({
+        kind: "sync-state",
+        sync: {
+          status: "syncing",
+          lastSyncedAt: previous.sync?.lastSyncedAt,
+        },
       })
-      await effects.syncStateChanged()
 
-      const fetched = await source.fetch(trackerSettings)
-      const tracked = uniquePRs(fetched)
-      const visible = trackerSettings.hideInactivePRs ? filterInactive(fetched, now()) : fetched
-      const visiblePRs = uniquePRs(visible)
-      const seen = reconcileSeen(tracked, previous.seen, trackerSettings.username)
-      const sync: SyncState = { status: "idle", lastSyncedAt: now().toISOString() }
+      const fetched = yield* Effect.result(source.fetch(settings))
+      if (Result.isFailure(fetched)) {
+        if (fetched.failure._tag === "GitHubAuthenticationError") {
+          yield* settingsService.clearAccount()
+          return
+        }
 
-      await store.commit(visible, seen, sync)
-      await effects.updateBadge({
-        total: visible.created.length + visible.assigned.length,
-        hasUnseen: hasUnseen(visiblePRs, seen),
-      })
-      await effects.prsUpdated()
-    } catch (error) {
-      if (error instanceof GitHubAuthenticationError) {
-        await settings.clearAccount()
+        yield* Effect.logError(fetched.failure.message)
+        yield* publication.publish({
+          kind: "sync-state",
+          sync: {
+            status: "error",
+            lastSyncedAt: previous.sync?.lastSyncedAt,
+            message: fetched.failure.message,
+          },
+        })
         return
       }
 
-      console.error("Error checking for updates:", error)
-      await store.setSync({
-        status: "error",
-        lastSyncedAt: previous.sync?.lastSyncedAt,
-        message: error instanceof Error ? error.message : "Unable to refresh pull requests",
-      })
-      await effects.syncStateChanged()
-    }
-  }
+      const now = yield* DateTime.nowAsDate
+      const tracked = uniquePRs(fetched.success)
+      const visible = settings.hideInactivePRs
+        ? filterInactive(fetched.success, now)
+        : fetched.success
+      const visiblePRs = uniquePRs(visible)
+      const seen = reconcileSeen(tracked, previous.seen, settings.username)
+      const sync: SyncState = { status: "idle", lastSyncedAt: now.toISOString() }
 
-  return {
-    refresh: () => enqueue(synchronize),
-    markSeen: (prId) =>
-      enqueue(async () => {
-        const { seen } = await store.read()
-        await store.setSeen({ ...seen, [prId]: now().toISOString() })
-        await synchronize()
-      }),
-  }
-}
+      yield* publication.publish({
+        kind: "snapshot",
+        prs: visible,
+        seen,
+        sync,
+        attention: {
+          total: visible.created.length + visible.assigned.length,
+          hasUnseen: hasUnseen(visiblePRs, seen),
+        },
+      })
+    })
+
+    const refresh = Effect.fn("PRSynchronization.refresh")(() =>
+      semaphore.withPermit(synchronize()),
+    )
+    const markSeen = Effect.fn("PRSynchronization.markSeen")((prId: number) =>
+      semaphore.withPermit(
+        Effect.gen(function* () {
+          const seenAt = (yield* DateTime.nowAsDate).toISOString()
+          yield* publication.recordSeen(prId, seenAt)
+          yield* synchronize()
+        }),
+      ),
+    )
+
+    return PRSynchronization.of({ refresh, markSeen })
+  }),
+)
+
+export const refreshPullRequests = Effect.flatMap(PRSynchronization, (service) => service.refresh())
+export const markPullRequestSeen = (prId: number) =>
+  Effect.flatMap(PRSynchronization, (service) => service.markSeen(prId))

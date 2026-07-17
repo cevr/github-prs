@@ -19,3 +19,7 @@ _Avoid_: Options, config
 **PR Synchronization**:
 The serialized process that refreshes a PR Snapshot from GitHub and reconciles seen state and attention across tracker surfaces.
 _Avoid_: Refresh, poll
+
+**PR Snapshot Publication**:
+The coherent release of a changed PR Snapshot and its attention state to every tracker surface.
+_Avoid_: PR update, notification

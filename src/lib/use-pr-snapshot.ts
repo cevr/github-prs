@@ -1,11 +1,16 @@
-import { createSignal, onCleanup } from "solid-js"
-import type { Accessor } from "solid-js"
+import { Effect, Result } from "effect"
+import { createEffect, createSignal, onCleanup } from "@solidjs/signals"
+import type { Accessor } from "@solidjs/signals"
+import { applicationRuntime } from "@/application/runtime"
+import { createCache } from "@/lib/cache"
+import { sendRuntimeCommand, subscribeToRuntimeEvents } from "@/runtime/runtime-messaging"
+import { isAccountConfigured, readTrackerSettings } from "@/settings/tracker-settings"
+import { readPRSnapshot } from "@/snapshot/pr-snapshot-publication"
 import type { PRData, SeenPRs, SyncState } from "@/types"
-import { isAccountConfigured, readTrackerSettings } from "./tracker-settings"
 
 export interface CachedPRSnapshot {
-  prs: PRData
-  seen: SeenPRs
+  readonly prs: PRData
+  readonly seen: SeenPRs
 }
 
 export type PRSnapshotState =
@@ -23,9 +28,9 @@ export type PRSnapshotState =
     }
 
 export interface PRSnapshotModel {
-  state: Accessor<PRSnapshotState>
-  refresh: () => void
-  markSeen: (prId: number) => void
+  readonly state: Accessor<PRSnapshotState>
+  readonly refresh: () => void
+  readonly markSeen: (prId: number) => void
 }
 
 function syncFailure(message: string): SyncState {
@@ -33,109 +38,96 @@ function syncFailure(message: string): SyncState {
 }
 
 export function usePRSnapshot(): PRSnapshotModel {
-  const [state, setState] = createSignal<PRSnapshotState>({ kind: "loading" })
-  let readGeneration = 0
+  const snapshotCache = createCache({
+    lookup: () =>
+      Effect.result(Effect.all({ settings: readTrackerSettings, local: readPRSnapshot })),
+    runner: applicationRuntime,
+  })
+  const stored = snapshotCache.get()
   let initialRefreshRequested = false
-
-  const readSnapshot = async () => {
-    const generation = ++readGeneration
-
-    try {
-      const [settings, local] = await Promise.all([
-        readTrackerSettings(),
-        chrome.storage.local.get(["previousPRs", "seenPRs", "syncState"]),
-      ])
-      if (generation !== readGeneration) return
-
-      if (!isAccountConfigured(settings)) {
-        setState({ kind: "setup-needed" })
-        return
+  const [state, setState] = createSignal<PRSnapshotState>(
+    (previous) => {
+      const result = stored()
+      if (Result.isFailure(result)) {
+        const failure = result.failure
+        const message =
+          failure instanceof Error ? failure.message : "Unable to read saved pull requests."
+        return previous?.kind === "available"
+          ? { kind: "available", snapshot: previous.snapshot, sync: syncFailure(message) }
+          : { kind: "unavailable", reason: "storage-failed", message }
       }
 
-      const prs = local.previousPRs as PRData | undefined
-      const sync = (local.syncState as SyncState | undefined) ?? { status: "idle" }
+      const { local, settings } = result.success
+      if (!isAccountConfigured(settings)) return { kind: "setup-needed" }
 
+      const prs = local.prs
+      const sync = local.sync ?? { status: "idle" }
       if (!prs) {
-        if (sync.status === "error") {
-          setState({
-            kind: "unavailable",
-            reason: "initial-sync-failed",
-            message: sync.message ?? "Unable to load pull requests.",
-          })
-          return
-        }
-
-        setState({ kind: "loading" })
-        if (!initialRefreshRequested) {
-          initialRefreshRequested = true
-          chrome.runtime.sendMessage({ action: "checkNow" })
-        }
-        return
+        return sync.status === "error"
+          ? {
+              kind: "unavailable",
+              reason: "initial-sync-failed",
+              message: sync.message ?? "Unable to load pull requests.",
+            }
+          : { kind: "loading" }
       }
 
-      initialRefreshRequested = false
-      setState({
+      return {
         kind: "available",
-        snapshot: {
-          prs,
-          seen: (local.seenPRs as SeenPRs | undefined) ?? {},
-        },
+        snapshot: { prs, seen: local.seen },
         sync,
-      })
-    } catch (error) {
-      if (generation !== readGeneration) return
-      const message = error instanceof Error ? error.message : "Unable to read saved pull requests."
-      setState((current) =>
-        current.kind === "available"
-          ? { ...current, sync: syncFailure(message) }
-          : { kind: "unavailable", reason: "storage-failed", message },
-      )
-    }
-  }
+      }
+    },
+    { lazy: true, name: "PRSnapshot.state", ownedWrite: true },
+  )
 
-  const listener = (request: { action: string }) => {
-    if (request.action === "prsUpdated" || request.action === "syncStateChanged") {
-      void readSnapshot()
-    } else if (request.action === "setupNeeded") {
-      readGeneration++
+  createEffect(
+    () => state(),
+    (current) => {
+      if (current.kind === "loading" && !initialRefreshRequested) {
+        initialRefreshRequested = true
+        void Effect.runPromise(sendRuntimeCommand({ action: "checkNow" }))
+      } else if (current.kind === "available") {
+        initialRefreshRequested = false
+      }
+    },
+  )
+
+  const unsubscribe = subscribeToRuntimeEvents((event) => {
+    if (event.action === "prSnapshotChanged") {
+      void snapshotCache.refresh()
+    } else {
       setState({ kind: "setup-needed" })
     }
-  }
-
-  chrome.runtime.onMessage.addListener(listener)
-  onCleanup(() => chrome.runtime.onMessage.removeListener(listener))
-  void readSnapshot()
+  })
+  onCleanup(unsubscribe)
 
   const refresh = () => {
     const current = state()
     if (current.kind === "available") {
       if (current.sync.status === "syncing") return
       setState({
-        ...current,
-        sync: {
-          status: "syncing",
-          lastSyncedAt: current.sync.lastSyncedAt,
-        },
+        kind: "available",
+        snapshot: current.snapshot,
+        sync: { status: "syncing", lastSyncedAt: current.sync.lastSyncedAt },
       })
     }
-    chrome.runtime.sendMessage({ action: "checkNow" })
+    void Effect.runPromise(sendRuntimeCommand({ action: "checkNow" }))
   }
 
   const markSeen = (prId: number) => {
     setState((current) => {
       if (current.kind !== "available") return current
+      const seen: Record<string, string> = {}
+      for (const [id, seenAt] of Object.entries(current.snapshot.seen)) seen[id] = seenAt
+      seen[prId] = new Date().toISOString()
       return {
-        ...current,
-        snapshot: {
-          ...current.snapshot,
-          seen: {
-            ...current.snapshot.seen,
-            [prId]: new Date().toISOString(),
-          },
-        },
+        kind: "available",
+        snapshot: { prs: current.snapshot.prs, seen },
+        sync: current.sync,
       }
     })
-    chrome.runtime.sendMessage({ action: "markPRViewed", prId })
+    void Effect.runPromise(sendRuntimeCommand({ action: "markPRViewed", prId }))
   }
 
   return { state, refresh, markSeen }

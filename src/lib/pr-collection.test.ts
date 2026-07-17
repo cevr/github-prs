@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "effect-bun-test"
 import type { PR } from "@/types"
 import { createPRCollection } from "./pr-collection"
 
@@ -29,7 +29,7 @@ describe("PR collection", () => {
     expect(input).toEqual([older, newest, middle])
     expect(collection).toMatchObject({ totalCount: 3, unseenCount: 2 })
     expect(collection.groups.map((group) => group.repo)).toEqual(["acme/platform", "acme/console"])
-    expect(collection.groups[1].items.map((item) => [item.pr.id, item.unseen])).toEqual([
+    expect(collection.groups.at(1)?.items.map((item) => [item.pr.id, item.unseen])).toEqual([
       [3, true],
       [1, false],
     ])

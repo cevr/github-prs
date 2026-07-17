@@ -1,26 +1,30 @@
-export interface PR {
-  id: number
-  number: number
-  title: string
-  html_url: string
-  repository_url: string
-  updated_at: string
-  user: { login: string }
-  isApproved?: boolean
-  lastUpdatedBy?: string
-}
+import { Schema } from "effect"
 
-export interface PRData {
-  created: PR[]
-  assigned: PR[]
-}
+export const PR = Schema.Struct({
+  id: Schema.Number,
+  number: Schema.Number,
+  title: Schema.String,
+  html_url: Schema.String,
+  repository_url: Schema.String,
+  updated_at: Schema.String,
+  user: Schema.Struct({ login: Schema.String }),
+  isApproved: Schema.optionalKey(Schema.Boolean),
+  lastUpdatedBy: Schema.optionalKey(Schema.String),
+})
+export type PR = typeof PR.Type
 
-export interface SeenPRs {
-  [key: string]: string
-}
+export const PRData = Schema.Struct({
+  created: Schema.Array(PR),
+  assigned: Schema.Array(PR),
+})
+export type PRData = typeof PRData.Type
 
-export interface SyncState {
-  status: "idle" | "syncing" | "error"
-  lastSyncedAt?: string
-  message?: string
-}
+export const SeenPRs = Schema.Record(Schema.String, Schema.String)
+export type SeenPRs = typeof SeenPRs.Type
+
+export const SyncState = Schema.Struct({
+  status: Schema.Literals(["idle", "syncing", "error"]),
+  lastSyncedAt: Schema.optionalKey(Schema.String),
+  message: Schema.optionalKey(Schema.String),
+})
+export type SyncState = typeof SyncState.Type

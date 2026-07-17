@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, test } from "bun:test"
-import { createRoot } from "solid-js"
+import { Effect } from "effect"
+import { describe, expect, it, yieldFibers } from "effect-bun-test"
+import { createRoot, flush } from "@solidjs/signals"
 import type { PRData, SyncState } from "@/types"
 import { usePRSnapshot } from "./use-pr-snapshot"
 
@@ -18,8 +19,17 @@ function createChromeMock(state: MockState) {
 
   const mock = {
     storage: {
-      sync: { get: async (keys: string[]) => select(state.sync, keys) },
-      local: { get: async (keys: string[]) => select(state.local, keys) },
+      sync: {
+        get: (keys: string[]) => resolved(select(state.sync, keys)),
+        remove: (key: string) => resolved(Reflect.deleteProperty(state.sync, key)),
+      },
+      local: {
+        get: (keys: string[]) => resolved(select(state.local, keys)),
+        set: (value: Record<string, unknown>) => {
+          Object.assign(state.local, value)
+          return resolved(undefined)
+        },
+      },
     },
     runtime: {
       onMessage: {
@@ -33,96 +43,118 @@ function createChromeMock(state: MockState) {
     },
   }
 
-  Object.defineProperty(globalThis, "chrome", { configurable: true, value: mock })
-
   return {
     emit(action: string) {
       for (const listener of listeners) listener({ action })
     },
     messages,
+    mock,
   }
 }
 
-async function settle() {
-  await Promise.resolve()
-  await Promise.resolve()
+function resolved<A>(value: A): Promise<A> {
+  return Effect.runPromise(Effect.succeed(value))
 }
 
-let dispose: (() => void) | undefined
+function installChrome(state: MockState) {
+  return Effect.acquireRelease(
+    Effect.sync(() => {
+      const controller = createChromeMock(state)
+      Object.defineProperty(globalThis, "chrome", {
+        configurable: true,
+        value: controller.mock,
+      })
+      return controller
+    }),
+    () =>
+      Effect.sync(() => {
+        Reflect.deleteProperty(globalThis, "chrome")
+      }),
+  )
+}
 
-afterEach(() => {
-  dispose?.()
-  dispose = undefined
-  Reflect.deleteProperty(globalThis, "chrome")
-})
+function createSnapshotModel() {
+  return Effect.acquireRelease(
+    Effect.sync(() => {
+      let dispose: () => void = () => undefined
+      const model = createRoot((rootDispose) => {
+        dispose = rootDispose
+        return usePRSnapshot()
+      })
+      return { dispose, model }
+    }),
+    ({ dispose }) => Effect.sync(dispose),
+  )
+}
+
+const settle = yieldFibers.pipe(Effect.andThen(Effect.sync(flush)))
 
 describe("PR snapshot", () => {
-  test("keeps the cached snapshot available while refresh runs and fails", async () => {
-    const storage: MockState = {
-      sync: { token: "token", username: "cevr" },
-      local: {
-        previousPRs: emptyPRs,
-        seenPRs: {},
-        syncState: { status: "idle", lastSyncedAt: "2026-07-16T12:00:00.000Z" },
-      },
-    }
-    const mock = createChromeMock(storage)
-    const model = createRoot((rootDispose) => {
-      dispose = rootDispose
-      return usePRSnapshot()
-    })
-    await settle()
+  it.scopedLive("keeps the cached snapshot available while refresh runs and fails", () =>
+    Effect.gen(function* () {
+      const storage: MockState = {
+        sync: { username: "cevr" },
+        local: {
+          githubToken: "token",
+          previousPRs: emptyPRs,
+          seenPRs: {},
+          syncState: { status: "idle", lastSyncedAt: "2026-07-16T12:00:00.000Z" },
+        },
+      }
+      const mock = yield* installChrome(storage)
+      const { model } = yield* createSnapshotModel()
+      yield* settle
 
-    expect(model.state().kind).toBe("available")
-    model.refresh()
-    expect(model.state()).toMatchObject({
-      kind: "available",
-      snapshot: { prs: emptyPRs },
-      sync: { status: "syncing" },
-    })
+      expect(model.state().kind).toBe("available")
+      model.refresh()
+      flush()
+      expect(model.state()).toMatchObject({
+        kind: "available",
+        snapshot: { prs: emptyPRs },
+        sync: { status: "syncing" },
+      })
 
-    const failedSync: SyncState = {
-      status: "error",
-      lastSyncedAt: "2026-07-16T12:00:00.000Z",
-      message: "offline",
-    }
-    storage.local.syncState = failedSync
-    mock.emit("syncStateChanged")
-    await settle()
+      const failedSync: SyncState = {
+        status: "error",
+        lastSyncedAt: "2026-07-16T12:00:00.000Z",
+        message: "offline",
+      }
+      storage.local["syncState"] = failedSync
+      mock.emit("prSnapshotChanged")
+      yield* settle
 
-    expect(model.state()).toMatchObject({
-      kind: "available",
-      snapshot: { prs: emptyPRs },
-      sync: { status: "error", message: "offline" },
-    })
-  })
+      expect(model.state()).toMatchObject({
+        kind: "available",
+        snapshot: { prs: emptyPRs },
+        sync: { status: "error", message: "offline" },
+      })
+    }),
+  )
 
-  test("requests the first sync only when no local snapshot exists", async () => {
-    const mock = createChromeMock({
-      sync: { token: "token", username: "cevr" },
-      local: { seenPRs: {}, syncState: { status: "idle" } },
-    })
-    const model = createRoot((rootDispose) => {
-      dispose = rootDispose
-      return usePRSnapshot()
-    })
-    await settle()
+  it.scopedLive("requests the first sync only when no local snapshot exists", () =>
+    Effect.gen(function* () {
+      const mock = yield* installChrome({
+        sync: { username: "cevr" },
+        local: { githubToken: "token", seenPRs: {}, syncState: { status: "idle" } },
+      })
+      const { model } = yield* createSnapshotModel()
+      yield* settle
 
-    expect(model.state()).toEqual({ kind: "loading" })
-    expect(mock.messages).toEqual([{ action: "checkNow" }])
-    mock.emit("syncStateChanged")
-    await settle()
-    expect(mock.messages).toEqual([{ action: "checkNow" }])
-  })
+      expect(model.state()).toEqual({ kind: "loading" })
+      expect(mock.messages).toEqual([{ action: "checkNow" }])
+      mock.emit("prSnapshotChanged")
+      yield* settle
+      expect(mock.messages).toEqual([{ action: "checkNow" }])
+    }),
+  )
 
-  test("represents missing credentials without a magic error", async () => {
-    createChromeMock({ sync: {}, local: {} })
-    const model = createRoot((rootDispose) => {
-      dispose = rootDispose
-      return usePRSnapshot()
-    })
-    await settle()
+  it.scopedLive("represents missing credentials without a magic error", () =>
+    Effect.gen(function* () {
+      yield* installChrome({ sync: {}, local: {} })
+      const { model } = yield* createSnapshotModel()
+      yield* settle
 
-    expect(model.state()).toEqual({ kind: "setup-needed" })
-  })
+      expect(model.state()).toEqual({ kind: "setup-needed" })
+    }),
+  )
 })

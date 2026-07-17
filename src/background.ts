@@ -1,88 +1,81 @@
-import type { PRData, SeenPRs, SyncState } from "./types"
+import { Effect, Schema } from "effect"
+import { installRuntimeCommandHandler } from "@/runtime/runtime-messaging"
+import { backgroundRuntime } from "./background/runtime"
+import type { PRSynchronization } from "./background/pr-synchronization"
+import { markPullRequestSeen, refreshPullRequests } from "./background/pr-synchronization"
+import type { TrackerSettingsService } from "./settings/tracker-settings"
 import {
-  clearTrackerAccount,
   initializeTrackerSettings,
   readTrackerSettings,
-} from "./lib/tracker-settings"
-import { createGitHubPRSource } from "./background/github-pr-source"
-import { createPRSynchronization } from "./background/pr-synchronization"
+  restrictTrackerStorageAccess,
+} from "./settings/tracker-settings"
 
-const synchronization = createPRSynchronization({
-  source: createGitHubPRSource(),
-  settings: {
-    read: readTrackerSettings,
-    clearAccount: clearTrackerAccount,
+class BackgroundChromeError extends Schema.TaggedErrorClass<BackgroundChromeError>()(
+  "BackgroundChromeError",
+  {
+    operation: Schema.String,
+    message: Schema.String,
+    cause: Schema.Defect(),
   },
-  store: {
-    async read() {
-      const stored: { seenPRs?: SeenPRs; syncState?: SyncState } = await chrome.storage.local.get([
-        "seenPRs",
-        "syncState",
-      ])
-      return { seen: stored.seenPRs ?? {}, sync: stored.syncState }
-    },
-    async setSeen(seenPRs) {
-      await chrome.storage.local.set({ seenPRs })
-    },
-    async setSync(syncState) {
-      await chrome.storage.local.set({ syncState })
-    },
-    async commit(previousPRs: PRData, seenPRs: SeenPRs, syncState: SyncState) {
-      await chrome.storage.local.set({ previousPRs, seenPRs, syncState })
-    },
-  },
-  effects: {
-    async syncStateChanged() {
-      await chrome.runtime.sendMessage({ action: "syncStateChanged" }).catch(() => undefined)
-    },
-    async prsUpdated() {
-      await chrome.runtime.sendMessage({ action: "prsUpdated" }).catch(() => undefined)
-    },
-    async updateBadge({ total, hasUnseen }) {
-      if (total === 0) {
-        await chrome.action.setBadgeText({ text: "" })
-        return
-      }
-      await Promise.all([
-        chrome.action.setBadgeText({ text: total.toString() }),
-        chrome.action.setBadgeTextColor({ color: "#fff" }),
-        chrome.action.setBadgeBackgroundColor({ color: hasUnseen ? "#f85149" : "#666" }),
-      ])
-    },
-  },
-})
+) {}
 
-function run(operation: Promise<void>) {
-  void operation.catch((error) => console.error("PR synchronization failed:", error))
+const storageReady = backgroundRuntime.runPromise(restrictTrackerStorageAccess)
+
+function run(program: Effect.Effect<void, unknown, PRSynchronization | TrackerSettingsService>) {
+  void storageReady
+    .then(() => backgroundRuntime.runPromise(program))
+    .catch((cause) => console.error("GitHub PR Tracker background operation failed:", cause))
 }
 
-function setupAlarm(interval: number) {
-  chrome.alarms.clear("checkPRs", () => {
-    chrome.alarms.create("checkPRs", { periodInMinutes: interval })
-  })
-}
+const setupAlarm = Effect.fn("Background.setupAlarm")((interval: number) =>
+  Effect.tryPromise({
+    try: () => chrome.alarms.clear("checkPRs"),
+    catch: (cause) =>
+      new BackgroundChromeError({
+        operation: "replace the refresh alarm",
+        message: "Chrome could not replace the refresh alarm.",
+        cause,
+      }),
+  }).pipe(
+    Effect.tap(() =>
+      Effect.sync(() => {
+        chrome.alarms.create("checkPRs", { periodInMinutes: interval })
+      }),
+    ),
+    Effect.asVoid,
+  ),
+)
 
-chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+run(
+  Effect.tryPromise({
+    try: () => chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }),
+    catch: (cause) =>
+      new BackgroundChromeError({
+        operation: "configure the side panel",
+        message: "Chrome could not configure the extension side panel.",
+        cause,
+      }),
+  }),
+)
 
 chrome.runtime.onInstalled.addListener(() => {
-  void initializeTrackerSettings().then((settings) => setupAlarm(settings.checkInterval))
+  run(Effect.flatMap(initializeTrackerSettings, (settings) => setupAlarm(settings.checkInterval)))
 })
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === "checkPRs") run(synchronization.refresh())
+  if (alarm.name === "checkPRs") run(refreshPullRequests)
 })
 
-chrome.runtime.onMessage.addListener(
-  (request: { action: string; prId?: number }, _sender, sendResponse) => {
-    if (request.action === "checkNow") {
-      run(synchronization.refresh())
-      sendResponse()
-    } else if (request.action === "markPRViewed" && request.prId != null) {
-      run(synchronization.markSeen(request.prId))
-      sendResponse()
-    } else if (request.action === "updateSettings") {
-      void readTrackerSettings().then((settings) => setupAlarm(settings.checkInterval))
-      sendResponse()
-    }
-  },
-)
+installRuntimeCommandHandler((command) => {
+  if (command.action === "checkNow") {
+    run(refreshPullRequests)
+  } else if (command.action === "markPRViewed") {
+    run(markPullRequestSeen(command.prId))
+  } else {
+    run(
+      Effect.flatMap(readTrackerSettings, (settings) =>
+        Effect.andThen(setupAlarm(settings.checkInterval), refreshPullRequests),
+      ),
+    )
+  }
+})

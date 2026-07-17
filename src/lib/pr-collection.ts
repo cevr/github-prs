@@ -46,13 +46,14 @@ export function createPRCollection(prs: readonly PR[], seen: Readonly<SeenPRs>):
 
   const groups = Array.from(byRepo, ([repo, items]) => ({
     repo,
-    items: [...items].sort(
-      (a, b) => new Date(b.pr.updated_at).getTime() - new Date(a.pr.updated_at).getTime(),
-    ),
-  })).sort(
-    (a, b) =>
-      new Date(b.items[0].pr.updated_at).getTime() - new Date(a.items[0].pr.updated_at).getTime(),
-  )
+    items: items
+      .slice()
+      .sort((a, b) => new Date(b.pr.updated_at).getTime() - new Date(a.pr.updated_at).getTime()),
+  })).sort((a, b) => {
+    const newestA = a.items.at(0)?.pr.updated_at ?? ""
+    const newestB = b.items.at(0)?.pr.updated_at ?? ""
+    return new Date(newestB).getTime() - new Date(newestA).getTime()
+  })
 
   return { groups, totalCount: prs.length, unseenCount }
 }
