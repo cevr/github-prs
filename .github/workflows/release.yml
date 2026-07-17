@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -68,7 +69,7 @@ jobs:
   marketplace:
     name: Submit Chrome Web Store release
     needs: version
-    if: needs.version.outputs.version-changed == 'true'
+    if: needs.version.outputs.version-changed == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: marketplace

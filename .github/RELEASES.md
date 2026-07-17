@@ -20,6 +20,10 @@ The extension ID is public and fixed in the workflow as `jgkofdbcjfhghgbpanbdlpi
 When either secret is absent, versioning still succeeds and the marketplace job reports a clean
 skip instead of failing.
 
+After adding the secrets for the first time, run the **Release** workflow manually to submit the
+current version. Manual runs are also the retry path for transient Web Store failures; the workflow
+checks submitted and published versions before uploading, so reruns are idempotent.
+
 ## Release flow
 
 1. Add a changeset with `bun run changeset` for each user-facing change.
