@@ -162,17 +162,21 @@ export const GitHubPRSourceLive = Layer.effect(
               updated_at: item.updated_at,
               user: { login: item.user.login },
             }),
-            (timeline): PR => ({
-              id: item.id,
-              number: item.number,
-              title: item.title,
-              html_url: item.html_url,
-              repository_url: item.repository_url,
-              updated_at: item.updated_at,
-              user: { login: item.user.login },
-              isApproved: includeApproval ? timeline.isApproved : undefined,
-              lastUpdatedBy: timeline.lastUpdatedBy,
-            }),
+            (timeline): PR => {
+              let isApproved: boolean | undefined
+              if (includeApproval) isApproved = timeline.isApproved
+              return {
+                id: item.id,
+                number: item.number,
+                title: item.title,
+                html_url: item.html_url,
+                repository_url: item.repository_url,
+                updated_at: item.updated_at,
+                user: { login: item.user.login },
+                isApproved,
+                lastUpdatedBy: timeline.lastUpdatedBy,
+              }
+            },
           ),
         { concurrency: "unbounded" },
       )

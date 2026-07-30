@@ -29,15 +29,18 @@ function createPersistence(initial: StoredTrackerSettings = {}) {
         Effect.sync(() => {
           changes.push(change)
           switch (change.kind) {
-            case "migrate-token":
+            case "migrate-token": {
+              let localToken = stored.localToken
+              if (change.storeLocally) localToken = change.token
               stored = {
-                localToken: change.storeLocally ? change.token : stored.localToken,
+                localToken,
                 legacyToken: undefined,
                 username: stored.username,
                 checkInterval: stored.checkInterval,
                 hideInactivePRs: stored.hideInactivePRs,
               }
               return
+            }
             case "initialize-interval":
               stored = {
                 localToken: stored.localToken,

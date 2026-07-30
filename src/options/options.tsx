@@ -15,6 +15,17 @@ const inputClass =
 
 const labelClass = "mb-1.5 block text-sm font-medium text-[#f0f6fc]"
 
+function statusRole(type: "success" | "error"): "alert" | "status" {
+  if (type === "error") return "alert"
+  return "status"
+}
+
+function statusClass(type: "success" | "error"): string {
+  const base = "rounded-lg border px-4 py-3 text-sm"
+  if (type === "success") return `${base} border-[#2f6f44] bg-[#14261b] text-[#7ee787]`
+  return `${base} border-[#6e3a36] bg-[#2d1618] text-[#ffb4ad]`
+}
+
 function createSettingsCache() {
   return createCache({
     lookup: () => readTrackerSettings,
@@ -27,6 +38,14 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
   const settings = settingsCache.get()
   const settingsStatus = settingsCache.status()
   const [showToken, setShowToken] = createSignal(false)
+  const tokenInputType = () => {
+    if (showToken()) return "text"
+    return "password"
+  }
+  const tokenTogglePressed = () => {
+    if (showToken()) return "true"
+    return "false"
+  }
   const [isDisconnecting, setIsDisconnecting] = createSignal(false)
   const [status, setStatus] = createSignal<{
     message: string
@@ -52,13 +71,9 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
       await settingsCache.refresh()
       setStatus({ message: "Settings saved. Refreshing pull requests now.", type: "success" })
     } catch (error) {
-      setStatus({
-        message:
-          error instanceof InvalidTrackerSettingsError
-            ? error.message
-            : "Chrome could not save these settings.",
-        type: "error",
-      })
+      let message = "Chrome could not save these settings."
+      if (error instanceof InvalidTrackerSettingsError) message = error.message
+      setStatus({ message, type: "error" })
     }
   }
 
@@ -138,7 +153,7 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
                   </label>
                   <div class="relative">
                     <input
-                      type={showToken() ? "text" : "password"}
+                      type={tokenInputType()}
                       id="token"
                       name="token"
                       value={settings().token}
@@ -151,9 +166,11 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
                       type="button"
                       onClick={() => setShowToken((visible) => !visible)}
                       class="absolute inset-y-1 right-1 rounded px-2.5 text-xs font-medium text-[#b1bac4] hover:bg-[#21262d] hover:text-[#f0f6fc] focus-visible:outline-2 focus-visible:outline-[#58a6ff]"
-                      aria-pressed={showToken() ? "true" : "false"}
+                      aria-pressed={tokenTogglePressed()}
                     >
-                      {showToken() ? "Hide" : "Show"}
+                      <Show when={showToken()} fallback="Show">
+                        Hide
+                      </Show>
                     </button>
                   </div>
                   <p class="mt-1.5 mb-0 text-xs leading-5 text-[#8b949e]">
@@ -334,7 +351,9 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
                     disabled={isDisconnecting()}
                     class="rounded-md border border-[#6e3a36] bg-[#2d1618] px-3.5 py-2 text-sm font-semibold text-[#ffb4ad] hover:bg-[#3b1d20] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff7b72]"
                   >
-                    {isDisconnecting() ? "Clearing…" : "Disconnect and clear account data"}
+                    <Show when={isDisconnecting()} fallback="Disconnect and clear account data">
+                      Clearing…
+                    </Show>
                   </button>
                 </div>
               </div>
@@ -342,15 +361,7 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
 
             <Show when={status()}>
               {(current) => (
-                <div
-                  role={current().type === "error" ? "alert" : "status"}
-                  class={
-                    "rounded-lg border px-4 py-3 text-sm " +
-                    (current().type === "success"
-                      ? "border-[#2f6f44] bg-[#14261b] text-[#7ee787]"
-                      : "border-[#6e3a36] bg-[#2d1618] text-[#ffb4ad]")
-                  }
-                >
+                <div role={statusRole(current().type)} class={statusClass(current().type)}>
                   {current().message}
                 </div>
               )}
@@ -362,7 +373,9 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
                 disabled={settingsStatus().status === "refreshing"}
                 class="rounded-md border border-[#2ea043] bg-[#238636] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#2ea043] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#58a6ff] active:bg-[#1f7a30]"
               >
-                {settingsStatus().status === "refreshing" ? "Saving…" : "Save settings"}
+                <Show when={settingsStatus().status === "refreshing"} fallback="Save settings">
+                  Saving…
+                </Show>
               </button>
             </div>
           </form>

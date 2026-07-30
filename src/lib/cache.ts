@@ -41,7 +41,8 @@ interface Entry<A> {
 
 function toError(cause: Cause.Cause<unknown>): Error {
   const failure = Cause.squash(cause)
-  return failure instanceof Error ? failure : new Error("Unable to load cached data.")
+  if (failure instanceof Error) return failure
+  return new Error("Unable to load cached data.")
 }
 
 export function createCache<Args extends Array<unknown>, A, E, R>(
@@ -95,10 +96,11 @@ export function createCache<Args extends Array<unknown>, A, E, R>(
     const entry = entryFor(args)
     const startRefresh = () => {
       const currentStatus = entry.status().status
-      entry.setStatus({
-        status:
-          currentStatus === "ready" || currentStatus === "refreshing" ? "refreshing" : "loading",
-      })
+      if (currentStatus === "ready" || currentStatus === "refreshing") {
+        entry.setStatus({ status: "refreshing" })
+      } else {
+        entry.setStatus({ status: "loading" })
+      }
       Effect.runSync(entry.invalidate)
       refreshSolid(entry.data)
       const promise = resolve(entry.data)

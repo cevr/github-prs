@@ -26,5 +26,6 @@ export function getTimeAgo(date: Date): string {
 }
 
 export function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback
+  if (error instanceof Error) return error.message
+  return fallback
 }

@@ -39,6 +39,11 @@ const read = Effect.fn("PRSnapshotPublication.read")(function* () {
   return { prs: decoded.previousPRs, seen: decoded.seenPRs ?? {}, sync: decoded.syncState }
 })
 
+function badgeBackgroundColor(hasUnseen: boolean): string {
+  if (hasUnseen) return "#f85149"
+  return "#666"
+}
+
 function updateBadge(summary: { readonly total: number; readonly hasUnseen: boolean }) {
   if (summary.total === 0) {
     return Effect.tryPromise(() => chrome.action.setBadgeText({ text: "" })).pipe(Effect.asVoid)
@@ -50,7 +55,7 @@ function updateBadge(summary: { readonly total: number; readonly hasUnseen: bool
       Effect.tryPromise(() => chrome.action.setBadgeTextColor({ color: "#fff" })),
       Effect.tryPromise(() =>
         chrome.action.setBadgeBackgroundColor({
-          color: summary.hasUnseen ? "#f85149" : "#666",
+          color: badgeBackgroundColor(summary.hasUnseen),
         }),
       ),
     ],

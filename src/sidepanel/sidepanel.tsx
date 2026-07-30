@@ -19,11 +19,13 @@ function SidePanelContent() {
 
   const available = createMemo(() => {
     const current = state()
-    return current.kind === "available" ? current : undefined
+    if (current.kind === "available") return current
+    return undefined
   })
   const unavailable = createMemo(() => {
     const current = state()
-    return current.kind === "unavailable" ? current : undefined
+    if (current.kind === "unavailable") return current
+    return undefined
   })
   const mineCollection = createMemo(() =>
     createPRCollection(available()?.snapshot.prs.created ?? [], available()?.snapshot.seen ?? {}),
@@ -52,9 +54,10 @@ function SidePanelContent() {
       </Match>
       <Match when={available()}>
         {(data) => {
-          const activeGroups = createMemo(() =>
-            activeTab() === "mine" ? mineCollection().groups : reviewCollection().groups,
-          )
+          const activeGroups = createMemo(() => {
+            if (activeTab() === "mine") return mineCollection().groups
+            return reviewCollection().groups
+          })
           const showApproved = createMemo(() => activeTab() === "mine")
 
           return (

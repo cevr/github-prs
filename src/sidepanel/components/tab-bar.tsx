@@ -16,23 +16,24 @@ function TabButton(props: {
   unseenCount: number
   onClick: () => void
 }) {
+  const buttonClass = () => {
+    const base =
+      "relative min-h-10 flex-1 border-0 bg-transparent px-2 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#58a6ff]"
+    if (props.active) {
+      return `${base} text-[#f0f6fc] after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[#58a6ff]`
+    }
+    return `${base} text-[#8b949e] hover:bg-[#161b22] hover:text-[#f0f6fc]`
+  }
+  const countClass = () => {
+    const base = "ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full"
+    if (props.unseenCount > 0) return `${base} bg-[#1f6feb] text-white`
+    return `${base} bg-[#21262d] text-[#b1bac4]`
+  }
+
   return (
-    <button
-      onClick={props.onClick}
-      class={`relative min-h-10 flex-1 border-0 bg-transparent px-2 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#58a6ff] ${
-        props.active
-          ? "text-[#f0f6fc] after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[#58a6ff]"
-          : "text-[#8b949e] hover:bg-[#161b22] hover:text-[#f0f6fc]"
-      }`}
-    >
+    <button onClick={props.onClick} class={buttonClass()}>
       {props.label}
-      <span
-        class={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full ${
-          props.unseenCount > 0 ? "bg-[#1f6feb] text-white" : "bg-[#21262d] text-[#b1bac4]"
-        }`}
-      >
-        {props.count}
-      </span>
+      <span class={countClass()}>{props.count}</span>
     </button>
   )
 }

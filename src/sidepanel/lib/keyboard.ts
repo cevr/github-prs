@@ -22,13 +22,15 @@ export function setupKeyboardNav(containerSelector: string) {
       case "ArrowDown":
       case "j": {
         e.preventDefault()
-        focusRow(rows, current === -1 ? 0 : current + 1)
+        if (current === -1) focusRow(rows, 0)
+        else focusRow(rows, current + 1)
         break
       }
       case "ArrowUp":
       case "k": {
         e.preventDefault()
-        focusRow(rows, current === -1 ? 0 : current - 1)
+        if (current === -1) focusRow(rows, 0)
+        else focusRow(rows, current - 1)
         break
       }
       case "Enter": {

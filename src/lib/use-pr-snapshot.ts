@@ -41,8 +41,10 @@ const SYNC_TIMEOUT_MS = 60_000
 
 function recoverInterruptedSync(sync: SyncState): SyncState {
   if (sync.status !== "syncing") return sync
-  const startedAt = sync.startedAt ? Date.parse(sync.startedAt) : Number.NaN
-  if (Number.isFinite(startedAt) && Date.now() - startedAt < SYNC_TIMEOUT_MS) return sync
+  if (sync.startedAt) {
+    const startedAt = Date.parse(sync.startedAt)
+    if (Number.isFinite(startedAt) && Date.now() - startedAt < SYNC_TIMEOUT_MS) return sync
+  }
   return {
     status: "error",
     lastSyncedAt: sync.lastSyncedAt,
@@ -63,11 +65,12 @@ export function usePRSnapshot(): PRSnapshotModel {
       const result = stored()
       if (Result.isFailure(result)) {
         const failure = result.failure
-        const message =
-          failure instanceof Error ? failure.message : "Unable to read saved pull requests."
-        return previous?.kind === "available"
-          ? { kind: "available", snapshot: previous.snapshot, sync: syncFailure(message) }
-          : { kind: "unavailable", reason: "storage-failed", message }
+        let message = "Unable to read saved pull requests."
+        if (failure instanceof Error) message = failure.message
+        if (previous?.kind === "available") {
+          return { kind: "available", snapshot: previous.snapshot, sync: syncFailure(message) }
+        }
+        return { kind: "unavailable", reason: "storage-failed", message }
       }
 
       const { local, settings } = result.success
@@ -76,13 +79,14 @@ export function usePRSnapshot(): PRSnapshotModel {
       const prs = local.prs
       const sync = recoverInterruptedSync(local.sync ?? { status: "idle" })
       if (!prs) {
-        return sync.status === "error"
-          ? {
-              kind: "unavailable",
-              reason: "initial-sync-failed",
-              message: sync.message ?? "Unable to load pull requests.",
-            }
-          : { kind: "loading" }
+        if (sync.status === "error") {
+          return {
+            kind: "unavailable",
+            reason: "initial-sync-failed",
+            message: sync.message ?? "Unable to load pull requests.",
+          }
+        }
+        return { kind: "loading" }
       }
 
       return {

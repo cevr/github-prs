@@ -9,6 +9,10 @@ interface HeaderProps {
 }
 
 export function Header(props: HeaderProps) {
+  const refreshIconClass = () => {
+    if (props.syncState?.status === "syncing") return "animate-spin"
+    return ""
+  }
   const syncLabel = () => {
     if (props.syncState?.status === "syncing") return "Syncing…"
     if (props.syncState?.lastSyncedAt) {
@@ -36,7 +40,7 @@ export function Header(props: HeaderProps) {
             aria-label="Refresh pull requests"
             disabled={props.syncState?.status === "syncing"}
           >
-            <RefreshIcon class={props.syncState?.status === "syncing" ? "animate-spin" : ""} />
+            <RefreshIcon class={refreshIconClass()} />
           </button>
         </Show>
         <button

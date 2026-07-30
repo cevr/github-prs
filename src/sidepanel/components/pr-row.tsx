@@ -11,6 +11,14 @@ interface PRRowProps {
 
 export function PRRow(props: PRRowProps) {
   const pr = () => props.item.pr
+  const indicatorClass = () => {
+    if (props.item.unseen) return "bg-[#58a6ff]"
+    return "bg-transparent"
+  }
+  const titleWeight = () => {
+    if (props.item.unseen) return "font-semibold"
+    return "font-medium"
+  }
 
   return (
     <a
@@ -24,21 +32,13 @@ export function PRRow(props: PRRowProps) {
       <span class="flex h-5 items-center justify-center" aria-hidden="true">
         <Show
           when={props.showApproved && pr().isApproved}
-          fallback={
-            <span
-              class={`size-1.5 rounded-full ${props.item.unseen ? "bg-[#58a6ff]" : "bg-transparent"}`}
-            />
-          }
+          fallback={<span class={`size-1.5 rounded-full ${indicatorClass()}`} />}
         >
           <CheckCircleIcon class="text-[#3fb950]" />
         </Show>
       </span>
       <span class="min-w-0">
-        <span
-          class={`block truncate text-[13px] leading-5 ${props.item.unseen ? "font-semibold" : "font-medium"}`}
-        >
-          {pr().title}
-        </span>
+        <span class={`block truncate text-[13px] leading-5 ${titleWeight()}`}>{pr().title}</span>
         <span class="block truncate text-[11px] leading-4 text-[#8b949e]">
           #{pr().number} · {pr().user.login}
         </span>

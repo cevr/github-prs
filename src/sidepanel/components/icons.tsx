@@ -36,13 +36,17 @@ export function CheckCircleIcon(props: IconProps) {
 
 export function ChevronIcon(props: IconProps & { open?: boolean }) {
   const rest = omit(props, "open")
+  const rotation = () => {
+    if (props.open) return "rotate-90"
+    return ""
+  }
   return (
     <svg
       width="12"
       height="12"
       viewBox="0 0 16 16"
       fill="currentColor"
-      class={`transition-transform ${props.open ? "rotate-90" : ""}`}
+      class={`transition-transform ${rotation()}`}
       {...rest}
     >
       <path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z" />

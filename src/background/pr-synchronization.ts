@@ -117,9 +117,8 @@ export const PRSynchronizationLive = Layer.effect(
 
       const now = yield* DateTime.nowAsDate
       const tracked = uniquePRs(fetched.success)
-      const visible = settings.hideInactivePRs
-        ? filterInactive(fetched.success, now)
-        : fetched.success
+      let visible = fetched.success
+      if (settings.hideInactivePRs) visible = filterInactive(fetched.success, now)
       const visiblePRs = uniquePRs(visible)
       const seen = reconcileSeen(tracked, previous.seen, settings.username)
       const sync: SyncState = { status: "idle", lastSyncedAt: now.toISOString() }

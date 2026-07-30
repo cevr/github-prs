@@ -24,9 +24,9 @@ describe("cache", () => {
               if (calls === 3) {
                 return yield* new CacheLoadError({ message: "revalidation unavailable" })
               }
-              return yield* Deferred.await(calls === 1 ? first : second).pipe(
-                Effect.map((value) => `${name}: ${value}`),
-              )
+              let gate = second
+              if (calls === 1) gate = first
+              return yield* Deferred.await(gate).pipe(Effect.map((value) => `${name}: ${value}`))
             }),
           runner: { runPromise: Effect.runPromise },
         })
@@ -86,9 +86,10 @@ describe("cache", () => {
           lookup: () =>
             Effect.suspend(() => {
               calls++
-              return calls === 1
-                ? Effect.fail(new CacheLoadError({ message: "storage unavailable" }))
-                : Deferred.await(recovery)
+              if (calls === 1) {
+                return Effect.fail(new CacheLoadError({ message: "storage unavailable" }))
+              }
+              return Deferred.await(recovery)
             }),
           runner: { runPromise: Effect.runPromise },
         })
@@ -134,7 +135,8 @@ describe("cache", () => {
             Effect.suspend(() => {
               calls++
               if (calls === 1) return Effect.succeed("idle")
-              return Deferred.await(calls === 2 ? firstRefresh : finalRefresh)
+              if (calls === 2) return Deferred.await(firstRefresh)
+              return Deferred.await(finalRefresh)
             }),
           runner: { runPromise: Effect.runPromise },
         })

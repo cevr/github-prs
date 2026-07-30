@@ -45,6 +45,16 @@ const DEFAULT_CHECK_INTERVAL = 15
 const MIN_CHECK_INTERVAL = 5
 const MAX_CHECK_INTERVAL = 60
 
+function trimmedString(value: unknown): string {
+  if (typeof value === "string") return value.trim()
+  return ""
+}
+
+function stringOrEmpty(value: unknown): string {
+  if (typeof value === "string") return value
+  return ""
+}
+
 function normalizeInterval(value: unknown): number {
   const interval = Number(value)
   if (!Number.isFinite(interval)) return DEFAULT_CHECK_INTERVAL
@@ -58,8 +68,8 @@ export function normalizeTrackerSettings(stored: {
   readonly hideInactivePRs?: unknown
 }): TrackerSettings {
   return {
-    token: typeof stored.token === "string" ? stored.token.trim() : "",
-    username: typeof stored.username === "string" ? stored.username.trim() : "",
+    token: trimmedString(stored.token),
+    username: trimmedString(stored.username),
     checkInterval: normalizeInterval(stored.checkInterval),
     hideInactivePRs: stored.hideInactivePRs !== false,
   }
@@ -77,8 +87,8 @@ export const TrackerSettingsServiceLive = Layer.effect(
 
     const readStoredTrackerSettings = Effect.fn("TrackerSettings.readStored")(function* () {
       const stored = yield* persistence.read()
-      const legacyToken = typeof stored.legacyToken === "string" ? stored.legacyToken.trim() : ""
-      const localToken = typeof stored.localToken === "string" ? stored.localToken : ""
+      const legacyToken = trimmedString(stored.legacyToken)
+      const localToken = stringOrEmpty(stored.localToken)
 
       if (legacyToken) {
         yield* persistence.apply({

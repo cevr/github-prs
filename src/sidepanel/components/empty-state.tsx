@@ -5,8 +5,10 @@ interface EmptyStateProps {
 }
 
 export function EmptyState(props: EmptyStateProps) {
-  const message = () =>
-    props.tab === "mine" ? "No open PRs authored by you." : "No PRs requesting your review."
+  const message = () => {
+    if (props.tab === "mine") return "No open PRs authored by you."
+    return "No PRs requesting your review."
+  }
 
   return (
     <div class="flex flex-col items-center justify-center py-12 text-[#484f58]">

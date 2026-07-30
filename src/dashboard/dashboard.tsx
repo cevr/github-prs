@@ -17,7 +17,12 @@ function DashboardList(props: {
   const collection = createMemo(() => createPRCollection(props.prs, props.seenPRs))
   const attentionColor = (unseen: boolean, approved: boolean | undefined) => {
     if (props.showApproved && approved) return "bg-[#3fb950]"
-    return unseen ? "bg-[#58a6ff]" : "bg-[#484f58]"
+    if (unseen) return "bg-[#58a6ff]"
+    return "bg-[#484f58]"
+  }
+  const titleWeight = (unseen: boolean) => {
+    if (unseen) return "font-semibold"
+    return "font-medium"
   }
 
   return (
@@ -69,7 +74,7 @@ function DashboardList(props: {
                       </span>
                       <span class="min-w-0">
                         <span
-                          class={`block truncate text-sm leading-5 ${item.unseen ? "font-semibold" : "font-medium"}`}
+                          class={`block truncate text-sm leading-5 ${titleWeight(item.unseen)}`}
                         >
                           {item.pr.title}
                         </span>
@@ -101,15 +106,18 @@ function DashboardContent() {
   const { state, refresh, markSeen } = usePRSnapshot()
   const available = createMemo(() => {
     const current = state()
-    return current.kind === "available" ? current : undefined
+    if (current.kind === "available") return current
+    return undefined
   })
   const unavailable = createMemo(() => {
     const current = state()
-    return current.kind === "unavailable" ? current : undefined
+    if (current.kind === "unavailable") return current
+    return undefined
   })
   const lastSyncLabel = createMemo(() => {
     const lastSyncedAt = available()?.sync.lastSyncedAt
-    return lastSyncedAt ? `Updated ${getTimeAgo(new Date(lastSyncedAt))}` : "Saved extension data"
+    if (lastSyncedAt) return `Updated ${getTimeAgo(new Date(lastSyncedAt))}`
+    return "Saved extension data"
   })
   const dateLabel = new Intl.DateTimeFormat(undefined, {
     weekday: "long",
@@ -178,7 +186,9 @@ function DashboardContent() {
                     disabled={data().sync.status === "syncing"}
                     class="rounded-md border border-[#30363d] bg-[#21262d] px-3.5 py-2 text-sm font-medium text-[#f0f6fc] hover:bg-[#30363d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#58a6ff]"
                   >
-                    {data().sync.status === "syncing" ? "Refreshing…" : "Refresh"}
+                    <Show when={data().sync.status === "syncing"} fallback="Refresh">
+                      Refreshing…
+                    </Show>
                   </button>
                   <button
                     type="button"
