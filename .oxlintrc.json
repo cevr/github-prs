@@ -34,22 +34,29 @@
     "no-underscore-dangle": "off",
     "no-nested-ternary": "error",
     "complexity": ["error", 20],
-    "effect/noSpread": "error",
-    "effect/noSchemaStruct": "off",
-    "effect/noMakeUnsafe": "error",
-    "effect/noHandRolledTaggedUnion": "error",
+    "effect/noAsyncFunction": "error",
     "effect/noDynamicImports": "error",
-    "effect/noPromiseControlFlowInTests": "error",
-    "effect/noSleepInTests": "error"
+    "effect/noEffectBind": "error",
+    "effect/noEffectDo": "error",
+    "effect/noGlobals": "error",
+    "effect/noNewError": "error",
+    "effect/noNewPromise": "error",
+    "effect/noNodeBuiltinImport": "error",
+    "effect/noTernary": "error",
+    "effect/noTestLifecycleHooks": "error",
+    "effect/noThrowStatement": "error",
+    "effect/noTryCatch": "error"
   },
-  "ignorePatterns": ["**/dist/**", "**/node_modules/**", "**/*.d.ts"],
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/*.d.ts",
+    "**/bin/**",
+    "**/scripts/**",
+    "store/fixtures/**",
+    "vite.config.ts"
+  ],
   "overrides": [
-    {
-      "files": ["**/*.tsx"],
-      "rules": {
-        "effect/noSpread": "off"
-      }
-    },
     {
       "files": ["**/*.test.ts", "**/*.test.tsx"],
       "rules": {
