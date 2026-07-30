@@ -3,6 +3,7 @@ import { createEffect, createSignal, onCleanup } from "@solidjs/signals"
 import type { Accessor } from "@solidjs/signals"
 import { applicationRuntime } from "@/application/runtime"
 import { createCache } from "@/lib/cache"
+import { nowEpochMillis, nowIso } from "@/lib/time"
 import { sendRuntimeCommand, subscribeToRuntimeEvents } from "@/runtime/runtime-messaging"
 import { isAccountConfigured, readTrackerSettings } from "@/settings/tracker-settings"
 import { readPRSnapshot } from "@/snapshot/pr-snapshot-publication"
@@ -43,7 +44,7 @@ function recoverInterruptedSync(sync: SyncState): SyncState {
   if (sync.status !== "syncing") return sync
   if (sync.startedAt) {
     const startedAt = Date.parse(sync.startedAt)
-    if (Number.isFinite(startedAt) && Date.now() - startedAt < SYNC_TIMEOUT_MS) return sync
+    if (Number.isFinite(startedAt) && nowEpochMillis() - startedAt < SYNC_TIMEOUT_MS) return sync
   }
   return {
     status: "error",
@@ -128,7 +129,7 @@ export function usePRSnapshot(): PRSnapshotModel {
         snapshot: current.snapshot,
         sync: {
           status: "syncing",
-          startedAt: new Date().toISOString(),
+          startedAt: nowIso(),
           lastSyncedAt: current.sync.lastSyncedAt,
         },
       })
@@ -141,7 +142,7 @@ export function usePRSnapshot(): PRSnapshotModel {
       if (current.kind !== "available") return current
       const seen: Record<string, string> = {}
       for (const [id, seenAt] of Object.entries(current.snapshot.seen)) seen[id] = seenAt
-      seen[prId] = new Date().toISOString()
+      seen[prId] = nowIso()
       return {
         kind: "available",
         snapshot: { prs: current.snapshot.prs, seen },

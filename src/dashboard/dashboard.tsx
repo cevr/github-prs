@@ -2,6 +2,7 @@ import { createMemo, For, Match, Show, Switch } from "solid-js"
 import { Errored, Loading } from "@solidjs/web"
 import { getErrorMessage, getTimeAgo } from "@/lib/format"
 import { createPRCollection } from "@/lib/pr-collection"
+import { nowDate } from "@/lib/time"
 import { usePRSnapshot } from "@/lib/use-pr-snapshot"
 import type { PR, SeenPRs } from "@/types"
 
@@ -88,7 +89,7 @@ function DashboardList(props: {
                         datetime={item.pr.updated_at}
                         title={item.pr.updated_at}
                       >
-                        {getTimeAgo(new Date(item.pr.updated_at))}
+                        {getTimeAgo(item.pr.updated_at)}
                       </time>
                     </a>
                   )}
@@ -116,14 +117,14 @@ function DashboardContent() {
   })
   const lastSyncLabel = createMemo(() => {
     const lastSyncedAt = available()?.sync.lastSyncedAt
-    if (lastSyncedAt) return `Updated ${getTimeAgo(new Date(lastSyncedAt))}`
+    if (lastSyncedAt) return `Updated ${getTimeAgo(lastSyncedAt)}`
     return "Saved extension data"
   })
   const dateLabel = new Intl.DateTimeFormat(undefined, {
     weekday: "long",
     month: "long",
     day: "numeric",
-  }).format(new Date())
+  }).format(nowDate())
 
   return (
     <Switch>

@@ -1,4 +1,5 @@
 import { Effect, Layer, Schema } from "effect"
+import { parseEpochMillis } from "@/lib/time"
 import { publishRuntimeEvent } from "@/runtime/runtime-messaging"
 import { PRData, SeenPRs, SyncState } from "@/types"
 import { PRSnapshotPublication, PRSnapshotPublicationError } from "./pr-snapshot-publication"
@@ -81,7 +82,7 @@ const recordSeen = Effect.fn("PRSnapshotPublication.recordSeen")(function* (
   for (const pr of prs.assigned) unique.set(pr.id, pr)
   const hasUnseen = Array.from(unique.values()).some((pr) => {
     const recordedAt = seen[pr.id.toString()]
-    return !recordedAt || new Date(pr.updated_at) > new Date(recordedAt)
+    return !recordedAt || parseEpochMillis(pr.updated_at) > parseEpochMillis(recordedAt)
   })
   yield* updateBadge({
     total: prs.created.length + prs.assigned.length,

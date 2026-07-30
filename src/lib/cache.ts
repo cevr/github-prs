@@ -1,4 +1,4 @@
-import { Cause, Duration, Effect, MutableHashMap, Option } from "effect"
+import { Cause, Duration, Effect, MutableHashMap, Option, Schema } from "effect"
 import {
   createMemo,
   createSignal,
@@ -39,10 +39,14 @@ interface Entry<A> {
   queuedRefreshPromise?: Promise<void>
 }
 
+class CacheDataError extends Schema.TaggedErrorClass<CacheDataError>()("CacheDataError", {
+  message: Schema.String,
+}) {}
+
 function toError(cause: Cause.Cause<unknown>): Error {
   const failure = Cause.squash(cause)
   if (failure instanceof Error) return failure
-  return new Error("Unable to load cached data.")
+  return new CacheDataError({ message: "Unable to load cached data." })
 }
 
 export function createCache<Args extends Array<unknown>, A, E, R>(
@@ -76,11 +80,14 @@ export function createCache<Args extends Array<unknown>, A, E, R>(
             Effect.tapCause((cause) =>
               Effect.sync(() => setStatus({ status: "failed", error: toError(cause) })),
             ),
+            Effect.catchCause((cause) =>
+              Option.match(lastValue, {
+                onNone: () => Effect.failCause(cause),
+                onSome: (value) => Effect.succeed(value),
+              }),
+            ),
           )
-          return options.runner.runPromise(operation).catch((error: unknown) => {
-            if (Option.isSome(lastValue)) return lastValue.value
-            throw error
-          })
+          return options.runner.runPromise(operation)
         },
         { lazy: true, name: "EffectCache.data" },
       )

@@ -1,4 +1,4 @@
-import { Deferred, Effect, Fiber, Layer } from "effect"
+import { DateTime, Deferred, Effect, Fiber, Layer } from "effect"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "effect-bun-test"
 import type { PR, PRData, SeenPRs, SyncState } from "@/types"
@@ -132,7 +132,9 @@ describe("PR Synchronization", () => {
         }),
       )
       const program = Effect.gen(function* () {
-        yield* TestClock.setTime(new Date("2026-07-16T13:00:00.000Z").getTime())
+        yield* TestClock.setTime(
+          DateTime.toEpochMillis(DateTime.makeUnsafe("2026-07-16T13:00:00.000Z")),
+        )
         const refreshFiber = yield* Effect.forkChild(refreshPullRequests)
         yield* Deferred.await(fetchStarted)
         const markSeenFiber = yield* Effect.forkChild(markPullRequestSeen(1))
@@ -163,7 +165,9 @@ describe("PR Synchronization", () => {
         }),
       )
       const program = Effect.gen(function* () {
-        yield* TestClock.setTime(new Date("2026-07-16T13:00:00.000Z").getTime())
+        yield* TestClock.setTime(
+          DateTime.toEpochMillis(DateTime.makeUnsafe("2026-07-16T13:00:00.000Z")),
+        )
         yield* refreshPullRequests
 
         expect(harness.seen["1"]).toBe("2026-07-16T12:00:00.000Z")
@@ -191,7 +195,9 @@ describe("PR Synchronization", () => {
         }),
       )
       const program = Effect.gen(function* () {
-        yield* TestClock.setTime(new Date("2026-07-16T13:00:00.000Z").getTime())
+        yield* TestClock.setTime(
+          DateTime.toEpochMillis(DateTime.makeUnsafe("2026-07-16T13:00:00.000Z")),
+        )
         const refreshFiber = yield* Effect.forkChild(refreshPullRequests)
         yield* Deferred.await(fetchStarted)
 

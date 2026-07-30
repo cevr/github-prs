@@ -48,7 +48,7 @@ export function PRRow(props: PRRowProps) {
         datetime={pr().updated_at}
         title={pr().updated_at}
       >
-        {getTimeAgo(new Date(pr().updated_at))}
+        {getTimeAgo(pr().updated_at)}
       </time>
     </a>
   )

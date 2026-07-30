@@ -1,4 +1,5 @@
 import type { PR, SeenPRs } from "@/types"
+import { parseEpochMillis } from "./time"
 
 export interface PRCollectionItem {
   pr: PR
@@ -26,7 +27,7 @@ function getRepoName(repositoryUrl: string): string {
 
 function isUnseen(pr: PR, seen: SeenPRs): boolean {
   const seenAt = seen[pr.id.toString()]
-  return !seenAt || new Date(pr.updated_at) > new Date(seenAt)
+  return !seenAt || parseEpochMillis(pr.updated_at) > parseEpochMillis(seenAt)
 }
 
 export function createPRCollection(prs: readonly PR[], seen: Readonly<SeenPRs>): PRCollection {
@@ -48,11 +49,11 @@ export function createPRCollection(prs: readonly PR[], seen: Readonly<SeenPRs>):
     repo,
     items: items
       .slice()
-      .sort((a, b) => new Date(b.pr.updated_at).getTime() - new Date(a.pr.updated_at).getTime()),
+      .sort((a, b) => parseEpochMillis(b.pr.updated_at) - parseEpochMillis(a.pr.updated_at)),
   })).sort((a, b) => {
     const newestA = a.items.at(0)?.pr.updated_at ?? ""
     const newestB = b.items.at(0)?.pr.updated_at ?? ""
-    return new Date(newestB).getTime() - new Date(newestA).getTime()
+    return parseEpochMillis(newestB) - parseEpochMillis(newestA)
   })
 
   return { groups, totalCount: prs.length, unseenCount }

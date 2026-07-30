@@ -22,9 +22,14 @@ class BackgroundChromeError extends Schema.TaggedErrorClass<BackgroundChromeErro
 const storageReady = backgroundRuntime.runPromise(restrictTrackerStorageAccess)
 
 function run(program: Effect.Effect<void, unknown, PRSynchronization | TrackerSettingsService>) {
-  return storageReady
-    .then(() => backgroundRuntime.runPromise(program))
-    .catch((cause) => console.error("GitHub PR Tracker background operation failed:", cause))
+  return backgroundRuntime.runPromise(
+    Effect.promise(() => storageReady).pipe(
+      Effect.andThen(program),
+      Effect.catchCause((cause) =>
+        Effect.logError("GitHub PR Tracker background operation failed", cause),
+      ),
+    ),
+  )
 }
 
 const setupAlarm = Effect.fn("Background.setupAlarm")((interval: number) =>

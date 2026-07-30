@@ -1,4 +1,5 @@
 import { Context, DateTime, Effect, Layer, Result, Semaphore } from "effect"
+import { parseEpochMillis } from "@/lib/time"
 import { GitHubApiError, GitHubPRSource } from "./github-pr-source"
 import type { PR, PRData, SeenPRs, SyncState } from "@/types"
 import { isAccountConfigured, TrackerSettingsService } from "@/settings/tracker-settings"
@@ -26,10 +27,9 @@ function uniquePRs(prs: PRData): readonly PR[] {
   return Array.from(unique.values())
 }
 
-function filterInactive(prs: PRData, now: Date): PRData {
-  const activeSince = new Date(now)
-  activeSince.setMonth(activeSince.getMonth() - 1)
-  const active = (pr: PR) => new Date(pr.updated_at) >= activeSince
+function filterInactive(prs: PRData, now: DateTime.Utc): PRData {
+  const activeSinceMillis = DateTime.toEpochMillis(DateTime.subtract(now, { months: 1 }))
+  const active = (pr: PR) => parseEpochMillis(pr.updated_at) >= activeSinceMillis
   return {
     created: prs.created.filter(active),
     assigned: prs.assigned.filter(active),
@@ -46,7 +46,10 @@ function reconcileSeen(prs: readonly PR[], seen: SeenPRs, username: string): See
   for (const pr of prs) {
     const prId = pr.id.toString()
     const seenAt = reconciled[prId]
-    if (pr.lastUpdatedBy === username && (!seenAt || new Date(pr.updated_at) > new Date(seenAt))) {
+    if (
+      pr.lastUpdatedBy === username &&
+      (!seenAt || parseEpochMillis(pr.updated_at) > parseEpochMillis(seenAt))
+    ) {
       reconciled[prId] = pr.updated_at
     }
   }
@@ -56,7 +59,7 @@ function reconcileSeen(prs: readonly PR[], seen: SeenPRs, username: string): See
 function hasUnseen(prs: readonly PR[], seen: SeenPRs): boolean {
   return prs.some((pr) => {
     const seenAt = seen[pr.id.toString()]
-    return !seenAt || new Date(pr.updated_at) > new Date(seenAt)
+    return !seenAt || parseEpochMillis(pr.updated_at) > parseEpochMillis(seenAt)
   })
 }
 
@@ -72,13 +75,13 @@ export const PRSynchronizationLive = Layer.effect(
       const previous = yield* publication.read()
       const settings = yield* settingsService.read()
       if (!isAccountConfigured(settings)) return
-      const startedAt = yield* DateTime.nowAsDate
+      const startedAt = yield* DateTime.now
 
       yield* publication.publish({
         kind: "sync-state",
         sync: {
           status: "syncing",
-          startedAt: startedAt.toISOString(),
+          startedAt: DateTime.formatIso(startedAt),
           lastSyncedAt: previous.sync?.lastSyncedAt,
         },
       })
@@ -115,13 +118,13 @@ export const PRSynchronizationLive = Layer.effect(
         return
       }
 
-      const now = yield* DateTime.nowAsDate
+      const now = yield* DateTime.now
       const tracked = uniquePRs(fetched.success)
       let visible = fetched.success
       if (settings.hideInactivePRs) visible = filterInactive(fetched.success, now)
       const visiblePRs = uniquePRs(visible)
       const seen = reconcileSeen(tracked, previous.seen, settings.username)
-      const sync: SyncState = { status: "idle", lastSyncedAt: now.toISOString() }
+      const sync: SyncState = { status: "idle", lastSyncedAt: DateTime.formatIso(now) }
 
       yield* publication.publish({
         kind: "snapshot",
@@ -141,7 +144,7 @@ export const PRSynchronizationLive = Layer.effect(
     const markSeen = Effect.fn("PRSynchronization.markSeen")((prId: number) =>
       semaphore.withPermit(
         Effect.gen(function* () {
-          const seenAt = (yield* DateTime.nowAsDate).toISOString()
+          const seenAt = DateTime.formatIso(yield* DateTime.now)
           yield* publication.recordSeen(prId, seenAt)
         }),
       ),

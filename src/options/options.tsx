@@ -1,3 +1,4 @@
+import { Effect } from "effect"
 import { createSignal, Show } from "solid-js"
 import { Errored, Loading } from "@solidjs/web"
 import { applicationRuntime } from "@/application/runtime"
@@ -5,7 +6,6 @@ import { createCache } from "@/lib/cache"
 import { getErrorMessage } from "@/lib/format"
 import {
   clearTrackerAccount,
-  InvalidTrackerSettingsError,
   readTrackerSettings,
   saveTrackerSettings,
 } from "@/settings/tracker-settings"
@@ -52,32 +52,36 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
     type: "success" | "error"
   }>()
 
-  const handleSubmit = async (event: SubmitEvent) => {
+  const handleSubmit = (event: SubmitEvent) => {
     event.preventDefault()
     setStatus()
 
     const form = event.currentTarget as HTMLFormElement
     const formData = new FormData(form)
 
-    try {
-      await applicationRuntime.runPromise(
-        saveTrackerSettings({
-          token: String(formData.get("token") ?? ""),
-          username: String(formData.get("username") ?? ""),
-          checkInterval: Number(formData.get("checkInterval")),
-          hideInactivePRs: formData.get("hideInactivePRs") === "on",
-        }),
-      )
-      await settingsCache.refresh()
+    const program = Effect.gen(function* () {
+      yield* saveTrackerSettings({
+        token: String(formData.get("token") ?? ""),
+        username: String(formData.get("username") ?? ""),
+        checkInterval: Number(formData.get("checkInterval")),
+        hideInactivePRs: formData.get("hideInactivePRs") === "on",
+      })
+      yield* Effect.promise(() => settingsCache.refresh())
       setStatus({ message: "Settings saved. Refreshing pull requests now.", type: "success" })
-    } catch (error) {
-      let message = "Chrome could not save these settings."
-      if (error instanceof InvalidTrackerSettingsError) message = error.message
-      setStatus({ message, type: "error" })
-    }
+    }).pipe(
+      Effect.catchTag("InvalidTrackerSettingsError", (error) =>
+        Effect.sync(() => setStatus({ message: error.message, type: "error" })),
+      ),
+      Effect.catchCause(() =>
+        Effect.sync(() =>
+          setStatus({ message: "Chrome could not save these settings.", type: "error" }),
+        ),
+      ),
+    )
+    void applicationRuntime.runPromise(program)
   }
 
-  const handleDisconnect = async () => {
+  const handleDisconnect = () => {
     if (
       !window.confirm(
         "Disconnect GitHub and delete the saved token, username, pull requests, and seen state from Chrome?",
@@ -87,18 +91,22 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
 
     setIsDisconnecting(true)
     setStatus()
-    try {
-      await applicationRuntime.runPromise(clearTrackerAccount)
-      await settingsCache.refresh()
+    const program = Effect.gen(function* () {
+      yield* clearTrackerAccount
+      yield* Effect.promise(() => settingsCache.refresh())
       setStatus({
         message: "Disconnected. Account credentials and saved pull-request data were deleted.",
         type: "success",
       })
-    } catch {
-      setStatus({ message: "Chrome could not clear the saved account data.", type: "error" })
-    } finally {
-      setIsDisconnecting(false)
-    }
+    }).pipe(
+      Effect.catchCause(() =>
+        Effect.sync(() =>
+          setStatus({ message: "Chrome could not clear the saved account data.", type: "error" }),
+        ),
+      ),
+      Effect.ensuring(Effect.sync(() => setIsDisconnecting(false))),
+    )
+    void applicationRuntime.runPromise(program)
   }
 
   return (

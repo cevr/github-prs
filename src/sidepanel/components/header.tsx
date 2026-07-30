@@ -16,7 +16,7 @@ export function Header(props: HeaderProps) {
   const syncLabel = () => {
     if (props.syncState?.status === "syncing") return "Syncing…"
     if (props.syncState?.lastSyncedAt) {
-      return `Updated ${getTimeAgo(new Date(props.syncState.lastSyncedAt))}`
+      return `Updated ${getTimeAgo(props.syncState.lastSyncedAt)}`
     }
     return ""
   }

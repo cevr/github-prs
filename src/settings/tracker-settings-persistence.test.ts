@@ -1,10 +1,15 @@
-import { Effect } from "effect"
+import { Effect, Schema } from "effect"
 import { describe, expect, it } from "effect-bun-test"
 import {
   ChromeTrackerSettingsPersistenceLive,
   TrackerSettingsPersistence,
 } from "./tracker-settings-persistence"
 import type { TrackerSettingsPersistenceChange } from "./tracker-settings-persistence"
+
+class ChromeStorageUnavailableError extends Schema.TaggedErrorClass<ChromeStorageUnavailableError>()(
+  "ChromeStorageUnavailableError",
+  { message: Schema.String },
+) {}
 
 function resolved<A>(value: A): Promise<A> {
   return Effect.runPromise(Effect.succeed(value))
@@ -92,7 +97,10 @@ describe("Chrome Tracker Settings persistence", () => {
       let removedLegacyToken = false
       yield* installChrome({
         storage: {
-          local: { set: () => rejected(new Error("local storage unavailable")) },
+          local: {
+            set: () =>
+              rejected(new ChromeStorageUnavailableError({ message: "local storage unavailable" })),
+          },
           sync: {
             remove: () => {
               removedLegacyToken = true

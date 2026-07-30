@@ -1,6 +1,7 @@
-export function getTimeAgo(date: Date): string {
-  const now = new Date()
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+import { nowEpochMillis, parseEpochMillis } from "./time"
+
+export function getTimeAgo(isoDate: string): string {
+  const seconds = Math.floor((nowEpochMillis() - parseEpochMillis(isoDate)) / 1000)
 
   let interval = Math.floor(seconds / 31536000)
   if (interval > 1) return `${interval}y ago`
