@@ -34,6 +34,8 @@ const GitHubSearchItem = Schema.Struct({
 
 const GitHubSearchResponse = Schema.Struct({ items: Schema.Array(GitHubSearchItem) })
 
+const SEARCH_PAGE_SIZE = 100
+
 function deduplicate(collections: readonly (readonly PR[])[]): readonly PR[] {
   const unique = new Map<number, PR>()
   for (const collection of collections) {
@@ -138,19 +140,28 @@ export const GitHubPRSourceLive = Layer.effect(
       query: string,
       includeApproval: boolean,
     ) {
-      const response = yield* execute(
-        token,
-        "search pull requests",
-        `https://api.github.com/search/issues?q=${query}`,
-      ).pipe(
-        Effect.flatMap((httpResponse) =>
-          HttpClientResponse.schemaBodyJson(GitHubSearchResponse)(httpResponse).pipe(
-            Effect.mapError((cause) => requestError("decode pull request search results", cause)),
+      const items: Array<Schema.Schema.Type<typeof GitHubSearchItem>> = []
+      let page = 1
+
+      while (true) {
+        const response = yield* execute(
+          token,
+          "search pull requests",
+          `https://api.github.com/search/issues?q=${query}&per_page=${SEARCH_PAGE_SIZE}&page=${page}`,
+        ).pipe(
+          Effect.flatMap((httpResponse) =>
+            HttpClientResponse.schemaBodyJson(GitHubSearchResponse)(httpResponse).pipe(
+              Effect.mapError((cause) => requestError("decode pull request search results", cause)),
+            ),
           ),
-        ),
-      )
+        )
+        items.push(...response.items)
+        if (response.items.length < SEARCH_PAGE_SIZE) break
+        page++
+      }
+
       return yield* Effect.forEach(
-        response.items,
+        items,
         (item) =>
           Effect.map(
             fetchTimeline(token, {
