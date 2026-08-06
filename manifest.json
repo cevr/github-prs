@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "GitHub PR Tracker",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Track authored and review-requested GitHub pull requests in a fast side panel and new-tab dashboard.",
   "minimum_chrome_version": "114",
   "permissions": ["storage", "alarms", "sidePanel"],
