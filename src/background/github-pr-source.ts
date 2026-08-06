@@ -19,7 +19,10 @@ export class GitHubApiError extends Schema.TaggedErrorClass<GitHubApiError>()("G
 const TimelineEvent = Schema.Struct({
   event: Schema.String,
   state: Schema.optionalKey(Schema.String),
-  actor: Schema.optionalKey(Schema.Struct({ login: Schema.String })),
+  created_at: Schema.optionalKey(Schema.String),
+  submitted_at: Schema.optionalKey(Schema.String),
+  actor: Schema.optionalKey(Schema.NullOr(Schema.Struct({ login: Schema.String }))),
+  user: Schema.optionalKey(Schema.NullOr(Schema.Struct({ login: Schema.String }))),
 })
 
 const GitHubSearchItem = Schema.Struct({
@@ -102,7 +105,7 @@ export const GitHubPRSourceLive = Layer.effect(
       const timeline = yield* execute(
         token,
         "load a pull request timeline",
-        `https://api.github.com/repos/${repository}/pulls/${pr.number}/timeline`,
+        `https://api.github.com/repos/${repository}/issues/${pr.number}/timeline?per_page=${SEARCH_PAGE_SIZE}`,
       ).pipe(
         Effect.flatMap((response) =>
           HttpClientResponse.schemaBodyJson(Schema.Array(TimelineEvent))(response).pipe(
@@ -113,26 +116,44 @@ export const GitHubPRSourceLive = Layer.effect(
           Effect.logWarning(error.message).pipe(Effect.as([])),
         ),
       )
-      let isApproved = false
       let lastUpdatedBy: string | undefined
+      let lastCommenter: string | undefined
+      let lastCommentedAt: string | undefined
+      const reviewerStates = new Map<string, string>()
 
       for (let index = timeline.length - 1; index >= 0; index--) {
         const event = timeline[index]
         if (!event) continue
+        const login = event.actor?.login ?? event.user?.login
         if (
           !lastUpdatedBy &&
-          event.actor &&
+          login &&
           ["reviewed", "committed", "commented", "synchronized"].includes(event.event)
         ) {
-          lastUpdatedBy = event.actor.login
+          lastUpdatedBy = login
         }
-        if (event.event === "reviewed") {
-          isApproved = event.state === "approved"
-          break
+        if (event.event === "commented" && !lastCommenter && login) {
+          lastCommenter = login
+          lastCommentedAt = event.created_at
+        }
+        if (event.event === "reviewed" && login && !reviewerStates.has(login)) {
+          reviewerStates.set(login, event.state ?? "commented")
         }
       }
 
-      return { isApproved, lastUpdatedBy }
+      const states = Array.from(reviewerStates.values())
+      let reviewStatus: PR["reviewStatus"]
+      if (states.includes("changes_requested")) reviewStatus = "changes_requested"
+      else if (states.includes("approved")) reviewStatus = "approved"
+      else if (states.length > 0) reviewStatus = "reviewed"
+
+      return {
+        isApproved: reviewStatus === "approved",
+        reviewStatus,
+        lastUpdatedBy,
+        lastCommenter,
+        lastCommentedAt,
+      }
     })
 
     const search = Effect.fn("GitHubPRSource.search")(function* (
@@ -185,7 +206,10 @@ export const GitHubPRSourceLive = Layer.effect(
                 updated_at: item.updated_at,
                 user: { login: item.user.login },
                 isApproved,
+                reviewStatus: timeline.reviewStatus,
                 lastUpdatedBy: timeline.lastUpdatedBy,
+                lastCommenter: timeline.lastCommenter,
+                lastCommentedAt: timeline.lastCommentedAt,
               }
             },
           ),

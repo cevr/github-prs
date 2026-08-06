@@ -1,6 +1,7 @@
 import { Show } from "solid-js"
 import type { PRCollectionItem } from "@/lib/pr-collection"
 import { getTimeAgo } from "@/lib/format"
+import { getCommentActivityLabel, getPRStatus } from "@/lib/pr-status"
 import { CheckCircleIcon } from "./icons"
 
 interface PRRowProps {
@@ -19,6 +20,7 @@ export function PRRow(props: PRRowProps) {
     if (props.item.unseen) return "font-semibold"
     return "font-medium"
   }
+  const status = () => getPRStatus(pr())
 
   return (
     <a
@@ -40,7 +42,15 @@ export function PRRow(props: PRRowProps) {
       <span class="min-w-0">
         <span class={`block truncate text-[13px] leading-5 ${titleWeight()}`}>{pr().title}</span>
         <span class="block truncate text-[11px] leading-4 text-[#8b949e]">
-          #{pr().number} · {pr().user.login}
+          #{pr().number} · {pr().user.login} · <span class={status().class}>{status().label}</span>
+          <Show when={pr().lastCommenter}>
+            {(commenter) => (
+              <>
+                {" "}
+                · {getCommentActivityLabel(props.item.newComment)} by @{commenter()}
+              </>
+            )}
+          </Show>
         </span>
       </span>
       <time

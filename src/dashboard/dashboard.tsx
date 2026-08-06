@@ -2,6 +2,7 @@ import { createMemo, For, Match, Show, Switch } from "solid-js"
 import { Errored, Loading } from "@solidjs/web"
 import { getErrorMessage, getTimeAgo } from "@/lib/format"
 import { createPRCollection } from "@/lib/pr-collection"
+import { getCommentActivityLabel, getPRStatus } from "@/lib/pr-status"
 import { nowDate } from "@/lib/time"
 import { usePRSnapshot } from "@/lib/use-pr-snapshot"
 import type { PR, SeenPRs } from "@/types"
@@ -80,8 +81,18 @@ function DashboardList(props: {
                           {item.pr.title}
                         </span>
                         <span class="mt-0.5 block text-xs text-[#8b949e]">
-                          #{item.pr.number} · {item.pr.user.login}
-                          <Show when={props.showApproved && item.pr.isApproved}> · Approved</Show>
+                          #{item.pr.number} · {item.pr.user.login} ·{" "}
+                          <span class={getPRStatus(item.pr).class}>
+                            {getPRStatus(item.pr).label}
+                          </span>
+                          <Show when={item.pr.lastCommenter}>
+                            {(commenter) => (
+                              <>
+                                {" "}
+                                · {getCommentActivityLabel(item.newComment)} by @{commenter()}
+                              </>
+                            )}
+                          </Show>
                         </span>
                       </span>
                       <time

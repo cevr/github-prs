@@ -9,7 +9,10 @@ export const PR = Schema.Struct({
   updated_at: Schema.String,
   user: Schema.Struct({ login: Schema.String }),
   isApproved: Schema.optional(Schema.Boolean),
+  reviewStatus: Schema.optional(Schema.Literals(["approved", "changes_requested", "reviewed"])),
   lastUpdatedBy: Schema.optional(Schema.String),
+  lastCommenter: Schema.optional(Schema.String),
+  lastCommentedAt: Schema.optional(Schema.String),
 })
 export type PR = typeof PR.Type
 

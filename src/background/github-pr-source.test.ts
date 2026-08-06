@@ -60,6 +60,55 @@ describe("GitHub PR source", () => {
       expect(requestedSearchPages).toEqual(expect.arrayContaining([1, 2]))
     }),
   )
+
+  it.effect("summarizes review state and latest comment activity", () =>
+    Effect.gen(function* () {
+      const client = HttpClient.make((request, url) => {
+        if (url.pathname.endsWith("/timeline")) {
+          expect(url.searchParams.get("per_page")).toBe("100")
+          return Effect.succeed(
+            jsonResponse(request, [
+              {
+                event: "reviewed",
+                state: "changes_requested",
+                actor: { login: "reviewer" },
+                submitted_at: "2026-08-05T10:00:00.000Z",
+              },
+              {
+                event: "commented",
+                actor: { login: "maintainer" },
+                created_at: "2026-08-05T11:00:00.000Z",
+              },
+              {
+                event: "reviewed",
+                state: "approved",
+                actor: { login: "reviewer" },
+                submitted_at: "2026-08-05T12:00:00.000Z",
+              },
+            ]),
+          )
+        }
+
+        const query = url.searchParams.get("q") ?? ""
+        const items = []
+        if (query.includes("author:cevr")) items.push(searchItem(1))
+        return Effect.succeed(jsonResponse(request, { items }))
+      })
+      const layer = GitHubPRSourceLive.pipe(
+        Layer.provide(Layer.succeed(HttpClient.HttpClient, client)),
+      )
+
+      const result = yield* fetchGitHubPullRequests(settings).pipe(Effect.provide(layer))
+
+      expect(result.created[0]).toMatchObject({
+        isApproved: true,
+        reviewStatus: "approved",
+        lastUpdatedBy: "reviewer",
+        lastCommenter: "maintainer",
+        lastCommentedAt: "2026-08-05T11:00:00.000Z",
+      })
+    }),
+  )
 })
 
 function jsonResponse(request: HttpClientRequest.HttpClientRequest, body: unknown) {

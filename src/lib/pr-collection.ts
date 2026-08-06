@@ -4,6 +4,7 @@ import { parseEpochMillis } from "./time"
 export interface PRCollectionItem {
   pr: PR
   unseen: boolean
+  newComment: boolean
 }
 
 export interface PRCollectionGroup {
@@ -37,9 +38,14 @@ export function createPRCollection(prs: readonly PR[], seen: Readonly<SeenPRs>):
   for (const pr of prs) {
     const unseen = isUnseen(pr, seen)
     if (unseen) unseenCount++
+    const seenAt = seen[pr.id.toString()]
+    const newComment = Boolean(
+      pr.lastCommentedAt &&
+      (!seenAt || parseEpochMillis(pr.lastCommentedAt) > parseEpochMillis(seenAt)),
+    )
 
     const repo = getRepoName(pr.repository_url)
-    const item = { pr, unseen }
+    const item = { pr, unseen, newComment }
     const items = byRepo.get(repo)
     if (items) items.push(item)
     else byRepo.set(repo, [item])

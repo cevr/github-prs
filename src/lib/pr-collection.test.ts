@@ -34,4 +34,21 @@ describe("PR collection", () => {
       [1, false],
     ])
   })
+
+  test("flags comments newer than the last seen time", () => {
+    const pullRequest = {
+      ...pr(1, "acme/console", "2026-07-16T12:00:00.000Z"),
+      lastCommenter: "octocat",
+      lastCommentedAt: "2026-07-16T11:00:00.000Z",
+    }
+
+    expect(
+      createPRCollection([pullRequest], { "1": "2026-07-16T10:00:00.000Z" }).groups[0]?.items[0]
+        ?.newComment,
+    ).toBe(true)
+    expect(
+      createPRCollection([pullRequest], { "1": "2026-07-16T11:00:00.000Z" }).groups[0]?.items[0]
+        ?.newComment,
+    ).toBe(false)
+  })
 })
