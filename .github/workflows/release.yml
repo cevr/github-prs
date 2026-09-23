@@ -66,11 +66,9 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Create or update Version Packages PR
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
-          version: bun run version
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          version-script: bun run version
 
   marketplace:
     name: Submit Chrome Web Store release
