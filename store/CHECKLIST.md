@@ -13,7 +13,6 @@
 
 ## Store listing assets
 
-- [x] Dashboard screenshot: **store/assets/dashboard-1280x800.png**.
 - [x] Settings screenshot: **store/assets/settings-1280x800.png**.
 - [x] Privacy-controls screenshot: **store/assets/privacy-controls-1280x800.png**.
 - [x] Side-panel screenshot: **store/assets/sidepanel-640x400.png**.
@@ -34,10 +33,10 @@
 ## Manual production test
 
 - [x] Load the production build as an unpacked extension in Chrome and confirm it is enabled without extension errors.
-- [x] Confirm installation visibly replaces the new-tab page with the PR dashboard and opens Settings from its setup state.
+- [x] Confirm the side panel opens Settings from its setup state.
 - [ ] Save a fine-grained, expiring token restricted to selected repositories with Pull requests read-only.
 - [ ] Confirm the token exists only in local storage and the username/preferences appear in sync storage.
 - [ ] Confirm both storage areas report **TRUSTED_CONTEXTS**.
-- [ ] Confirm side panel, dashboard, background alarm, manual refresh, mark-seen, and options all work.
+- [ ] Confirm side panel, background alarm, manual refresh, mark-seen, and options all work.
 - [ ] Simulate an offline refresh and confirm the saved PR Snapshot stays visible.
 - [ ] Disconnect and confirm token, username, cached pull requests, seen state, sync state, and badge are cleared.

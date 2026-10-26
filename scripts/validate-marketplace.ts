@@ -7,7 +7,6 @@ interface ExtensionManifest {
   readonly description: string
   readonly background: { readonly service_worker: string }
   readonly side_panel: { readonly default_path: string }
-  readonly chrome_url_overrides: { readonly newtab: string }
   readonly options_page: string
   readonly icons: Readonly<Record<string, string>>
   readonly action: { readonly default_icon: Readonly<Record<string, string>> }
@@ -69,7 +68,6 @@ const requiredEntries: string[] = [
   "manifest.json",
   manifest.background.service_worker,
   manifest.side_panel.default_path,
-  manifest.chrome_url_overrides.newtab,
   manifest.options_page,
 ]
 for (const path of Object.values(manifest.icons)) requiredEntries.push(path)
@@ -86,7 +84,6 @@ for (const entry of entries) {
 }
 
 const listingImages: readonly ListingImage[] = [
-  { path: "store/assets/dashboard-1280x800.png", width: 1280, height: 800 },
   { path: "store/assets/settings-1280x800.png", width: 1280, height: 800 },
   { path: "store/assets/privacy-controls-1280x800.png", width: 1280, height: 800 },
   { path: "store/assets/sidepanel-640x400.png", width: 640, height: 400 },

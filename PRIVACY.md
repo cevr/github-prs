@@ -51,7 +51,6 @@ Deleting data from Chrome does not revoke the token at GitHub. Users should also
 - **alarms**: schedules background refreshes at the chosen interval.
 - **sidePanel**: displays the pull-request tracker beside the current page.
 - Access to **https://api.github.com/**: searches and reads the GitHub pull requests the user authorized.
-- New-tab override: displays the pull-request dashboard whenever the user opens a new tab.
 
 The extension requests no broad website access.
 

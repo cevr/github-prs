@@ -18,7 +18,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         sidepanel: resolve(__dirname, "src/sidepanel/sidepanel.html"),
-        dashboard: resolve(__dirname, "src/dashboard/dashboard.html"),
         options: resolve(__dirname, "src/options/options.html"),
         background: resolve(__dirname, "src/background.ts"),
       },

@@ -1,6 +1,6 @@
 # GitHub PR Tracker
 
-A client-only Chrome extension that keeps authored and review-requested GitHub pull requests easy to scan in the side panel and a new-tab dashboard.
+A client-only Chrome extension that keeps authored and review-requested GitHub pull requests easy to scan in Chrome's side panel.
 
 ## Privacy
 

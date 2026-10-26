@@ -6,7 +6,7 @@ GitHub PR Tracker
 
 ## Summary
 
-Scan the GitHub pull requests you created or need to review from Chrome's side panel and new-tab dashboard.
+Scan the GitHub pull requests you created or need to review from Chrome's side panel.
 
 ## Detailed description
 
@@ -17,11 +17,8 @@ GitHub PR Tracker gives developers one fast, client-only view of active pull req
 - Group work by repository and surface unseen activity.
 - Check approval and latest timeline activity.
 - Keep the last saved snapshot visible during background refreshes or network failures.
-- Open the same focused view in Chrome's side panel or every new tab.
 
 Your GitHub token stays in local Chrome storage and is sent only to GitHub's API. Pull-request data is cached locally for fast rendering. There is no developer server, analytics, advertising, tracking, or sale of data.
-
-The extension replaces Chrome's new-tab page with the pull-request dashboard. This behavior is part of the extension's single purpose and can be reversed by disabling or uninstalling the extension.
 
 ## Category
 
@@ -33,7 +30,7 @@ English
 
 ## Single purpose
 
-Show a developer's active authored and review-requested GitHub pull requests, review state, and unseen activity in Chrome's side panel and new-tab page.
+Show a developer's active authored and review-requested GitHub pull requests, review state, and unseen activity in Chrome's side panel.
 
 ## Permission justifications
 

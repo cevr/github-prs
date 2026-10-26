@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "GitHub PR Tracker",
   "version": "1.1.0",
-  "description": "Track authored and review-requested GitHub pull requests in a fast side panel and new-tab dashboard.",
+  "description": "Track your authored and review-requested GitHub pull requests, ordered by review status, in Chrome's side panel.",
   "minimum_chrome_version": "114",
   "permissions": ["storage", "alarms", "sidePanel"],
   "host_permissions": ["https://api.github.com/*"],
@@ -15,9 +15,6 @@
   },
   "side_panel": {
     "default_path": "dist/sidepanel/sidepanel.html"
-  },
-  "chrome_url_overrides": {
-    "newtab": "dist/dashboard/dashboard.html"
   },
   "background": {
     "service_worker": "dist/background.js",

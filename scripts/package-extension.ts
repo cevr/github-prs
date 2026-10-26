@@ -6,7 +6,6 @@ interface ExtensionManifest {
   readonly version: string
   readonly background: { readonly service_worker: string }
   readonly side_panel: { readonly default_path: string }
-  readonly chrome_url_overrides: { readonly newtab: string }
   readonly options_page: string
   readonly icons: Readonly<Record<string, string>>
   readonly action: { readonly default_icon: Readonly<Record<string, string>> }
@@ -43,7 +42,6 @@ try {
   const requiredPaths: string[] = [
     manifest.background.service_worker,
     manifest.side_panel.default_path,
-    manifest.chrome_url_overrides.newtab,
     manifest.options_page,
   ]
   for (const path of iconPaths) requiredPaths.push(path)

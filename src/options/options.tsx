@@ -125,7 +125,7 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
               Settings
             </h1>
             <p class="mt-2 mb-0 max-w-2xl text-sm leading-6 text-[#8b949e]">
-              Connect your account, choose how often to refresh, and preview the new tab dashboard.
+              Connect your account and choose how often to refresh.
             </p>
           </header>
 
@@ -272,34 +272,6 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
                     </span>
                   </span>
                 </label>
-              </div>
-            </section>
-
-            <section class="overflow-hidden rounded-xl border border-[#30363d] bg-[#0d1117]">
-              <div class="flex flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-6">
-                <div class="max-w-xl">
-                  <div class="flex items-center gap-2">
-                    <h2 class="m-0 text-base font-semibold text-[#f0f6fc]">New tab dashboard</h2>
-                    <span class="rounded-full bg-[#193b24] px-2 py-0.5 text-[11px] font-semibold text-[#7ee787]">
-                      Enabled
-                    </span>
-                  </div>
-                  <p class="mt-1.5 mb-0 text-xs leading-5 text-[#8b949e]">
-                    New tabs open an instant, full-width view of your saved pull requests and
-                    refresh in the background.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    chrome.tabs.create({
-                      url: chrome.runtime.getURL("dist/dashboard/dashboard.html"),
-                    })
-                  }
-                  class="rounded-md border border-[#30363d] bg-[#21262d] px-3.5 py-2 text-sm font-medium text-[#f0f6fc] hover:bg-[#30363d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#58a6ff]"
-                >
-                  Preview dashboard
-                </button>
               </div>
             </section>
 
