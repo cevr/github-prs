@@ -25,7 +25,7 @@ const nodes = <A>(list: readonly A[]) => ({ nodes: list })
 
 function pullRequest(id: number, overrides: Record<string, unknown> = {}) {
   return {
-    databaseId: id,
+    fullDatabaseId: String(id),
     number: id,
     title: `Pull request ${id}`,
     url: `https://github.com/acme/tracker/pull/${id}`,
@@ -37,6 +37,8 @@ function pullRequest(id: number, overrides: Record<string, unknown> = {}) {
     repository: { nameWithOwner: "acme/tracker" },
     latestOpinionatedReviews: nodes([]),
     latestReviews: nodes([]),
+    viewerOpinion: nodes([]),
+    viewerComment: nodes([]),
     reviewRequests: nodes([]),
     comments: nodes([]),
     timelineItems: nodes([]),
@@ -166,6 +168,64 @@ describe("GitHub PR source", () => {
       expect(pr?.reviews.map((review) => [review.reviewer.login, review.verdict])).toEqual([
         ["monalisa", "approved"],
         ["hubot", "commented"],
+      ])
+    }),
+  )
+
+  it.effect("reads the user's own verdict from its own query, not the capped review lists", () =>
+    Effect.gen(function* () {
+      const { layer } = graphql((query) => {
+        if (!query.includes("assignee:cevr")) return searchPage([])
+        return searchPage([
+          pullRequest(20, {
+            author: user("octocat"),
+            latestReviews: nodes([
+              { state: "APPROVED", submittedAt: "2026-08-05T09:00:00Z", author: user("cevr") },
+            ]),
+            viewerOpinion: nodes([
+              {
+                state: "CHANGES_REQUESTED",
+                submittedAt: "2026-08-05T10:00:00Z",
+                author: user("cevr"),
+              },
+            ]),
+          }),
+          pullRequest(21, {
+            author: user("octocat"),
+            viewerOpinion: nodes([
+              { state: "DISMISSED", submittedAt: "2026-08-05T10:00:00Z", author: user("cevr") },
+            ]),
+            viewerComment: nodes([
+              { state: "COMMENTED", submittedAt: "2026-08-05T11:00:00Z", author: user("cevr") },
+            ]),
+          }),
+        ])
+      })
+
+      const { reviewing } = yield* fetchGitHubPullRequests(settings).pipe(Effect.provide(layer))
+
+      expect(reviewing.map((pr) => pr.reviews.map((review) => review.verdict))).toEqual([
+        ["changes_requested"],
+        ["commented"],
+      ])
+    }),
+  )
+
+  it.effect("fails a refresh GitHub answered only in part, so the saved snapshot stays", () =>
+    Effect.gen(function* () {
+      const partial = graphql(() => ({
+        ...searchPage([pullRequest(1), null]),
+        errors: [{ message: "Something went wrong while executing your query." }],
+      }))
+      const unnamed = graphql(() => searchPage([pullRequest(1, { fullDatabaseId: null })]))
+
+      const errors = yield* Effect.forEach([partial.layer, unnamed.layer], (layer) =>
+        Effect.flip(fetchGitHubPullRequests(settings).pipe(Effect.provide(layer))),
+      )
+
+      expect(errors.map((error) => [error._tag, error.message])).toEqual([
+        ["GitHubApiError", "Something went wrong while executing your query."],
+        ["GitHubApiError", "GitHub left a pull request out of the search. Try again."],
       ])
     }),
   )

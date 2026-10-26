@@ -20,18 +20,23 @@ const GRAPHQL_URL = "https://api.github.com/graphql"
 const SEARCH_PAGE_SIZE = 100
 
 // One search returns every open pull request with what its review status needs, instead of a search
-// followed by a timeline request per pull request. Nested lists keep their latest entries.
+// followed by a timeline request per pull request. Nested lists keep their latest entries; the
+// viewer's own verdict is read on its own, so it never depends on how many others reviewed.
 const SEARCH_QUERY = `
-query PullRequests($query: String!, $after: String) {
+query PullRequests($query: String!, $after: String, $viewer: String!) {
   search(query: $query, type: ISSUE, first: ${SEARCH_PAGE_SIZE}, after: $after) {
     pageInfo { hasNextPage endCursor }
     nodes {
       ... on PullRequest {
-        databaseId number title url updatedAt isDraft reviewDecision mergeable
+        fullDatabaseId number title url updatedAt isDraft reviewDecision mergeable
         author { __typename login avatarUrl(size: 48) }
         repository { nameWithOwner }
-        latestOpinionatedReviews(first: 30) { nodes { ...Verdict } }
-        latestReviews(first: 30) { nodes { ...Verdict } }
+        latestOpinionatedReviews(first: 100) { nodes { ...Verdict } }
+        latestReviews(first: 100) { nodes { ...Verdict } }
+        viewerOpinion: reviews(last: 1, author: $viewer, states: [APPROVED, CHANGES_REQUESTED, DISMISSED]) {
+          nodes { ...Verdict }
+        }
+        viewerComment: reviews(last: 1, author: $viewer, states: [COMMENTED]) { nodes { ...Verdict } }
         reviewRequests(first: 20) {
           nodes { requestedReviewer { __typename ... on User { login avatarUrl(size: 48) } } }
         }
@@ -91,7 +96,8 @@ const TimelineNode = Schema.Struct({
 })
 
 const PullRequestNode = Schema.Struct({
-  databaseId: Schema.Number,
+  // A 64-bit ID as a string; the older `databaseId` is deprecated because it can overflow to null.
+  fullDatabaseId: Schema.NullOr(Schema.String),
   number: Schema.Number,
   title: Schema.String,
   url: Schema.String,
@@ -105,6 +111,8 @@ const PullRequestNode = Schema.Struct({
   repository: Schema.Struct({ nameWithOwner: Schema.String }),
   latestOpinionatedReviews: connection(ReviewNode),
   latestReviews: connection(ReviewNode),
+  viewerOpinion: connection(ReviewNode),
+  viewerComment: connection(ReviewNode),
   reviewRequests: connection(
     Schema.Struct({
       requestedReviewer: Schema.NullOr(
@@ -166,14 +174,17 @@ function avatarOf(login: string, avatarUrl: string | undefined): string {
   return avatarUrl ?? `https://avatars.githubusercontent.com/${encodeURIComponent(login)}?s=48`
 }
 
-function reviewsOf(node: PullRequestNode, author: string): Review[] {
+function reviewsOf(node: PullRequestNode, author: string, viewer: string): Review[] {
   const byReviewer = new Map<string, Review>()
   // A reviewer's latest review may be a comment after an approval; the approval still stands, so
-  // opinionated reviews are read last and win.
-  for (const review of [
-    ...nodesOf(node.latestReviews),
-    ...nodesOf(node.latestOpinionatedReviews),
-  ]) {
+  // opinionated reviews are read last and win. The viewer's own pair comes last: a dismissed
+  // verdict no longer stands, and a comment-only review then counts.
+  const viewerOpinion = nodesOf(node.viewerOpinion).filter((review) => review.state !== "DISMISSED")
+  const others = [...nodesOf(node.latestReviews), ...nodesOf(node.latestOpinionatedReviews)].filter(
+    (review) => !review.author || !sameLogin(review.author.login, viewer),
+  )
+  const reviews = [...others, ...nodesOf(node.viewerComment), ...viewerOpinion]
+  for (const review of reviews) {
     const verdict = VERDICTS[review.state]
     if (!verdict || !review.submittedAt || !person(review.author)) continue
     // The author's replies to review threads are reviews too.
@@ -224,10 +235,10 @@ function lastCommentOf(node: PullRequestNode): Activity | undefined {
   return { by: comment.author.login, at: comment.createdAt }
 }
 
-export function toPR(node: PullRequestNode): PR {
+function toPR(node: PullRequestNode, id: number, viewer: string): PR {
   const author = node.author?.login ?? "ghost"
   return {
-    id: node.databaseId,
+    id,
     number: node.number,
     title: node.title,
     url: node.url,
@@ -237,7 +248,7 @@ export function toPR(node: PullRequestNode): PR {
     draft: node.isDraft,
     decision: decisionOf(node),
     conflicting: node.mergeable === "CONFLICTING",
-    reviews: reviewsOf(node, author),
+    reviews: reviewsOf(node, author, viewer),
     requestedReviewers: requestedReviewersOf(node),
     lastActivity: lastActivityOf(node),
     lastComment: lastCommentOf(node),
@@ -277,13 +288,17 @@ export const GitHubPRSourceLive = Layer.effect(
 
     const searchPage = Effect.fn("GitHubPRSource.searchPage")(function* (
       token: string,
+      viewer: string,
       query: string,
       after: string | null,
     ) {
       const request = HttpClientRequest.post(GRAPHQL_URL).pipe(
         HttpClientRequest.setHeader("authorization", `Bearer ${token}`),
         HttpClientRequest.setHeader("accept", "application/vnd.github+json"),
-        HttpClientRequest.bodyJsonUnsafe({ query: SEARCH_QUERY, variables: { query, after } }),
+        HttpClientRequest.bodyJsonUnsafe({
+          query: SEARCH_QUERY,
+          variables: { query, after, viewer },
+        }),
       )
       const response = yield* client
         .execute(request)
@@ -299,24 +314,36 @@ export const GitHubPRSourceLive = Layer.effect(
       const body = yield* HttpClientResponse.schemaBodyJson(SearchResponse)(response).pipe(
         Effect.mapError((cause) => requestError("decode pull request search results", cause)),
       )
+      // A partial answer would publish as complete and drop pull requests with their seen state, so
+      // any error fails the refresh and the saved snapshot stays.
       const message = body.errors?.map((error) => error.message).join(" ")
-      if (!body.data) {
+      if (!body.data || message) {
         return yield* new GitHubApiError({
           operation: "search pull requests",
           message: message ?? "GitHub returned no pull requests.",
         })
       }
-      // A token without access to part of a pull request (a field, a repository) gets the rest.
-      if (message) yield* Effect.logWarning(`GitHub left out part of a search: ${message}`)
       return body.data.search
     })
 
-    const search = Effect.fn("GitHubPRSource.search")(function* (token: string, query: string) {
+    const search = Effect.fn("GitHubPRSource.search")(function* (
+      settings: TrackerSettings,
+      query: string,
+    ) {
       const prs: PR[] = []
       let after: string | null = null
       while (true) {
-        const page: SearchPage = yield* searchPage(token, query, after)
-        for (const node of page.nodes) if (node) prs.push(toPR(node))
+        const page: SearchPage = yield* searchPage(settings.token, settings.username, query, after)
+        for (const node of page.nodes) {
+          const id = Number(node?.fullDatabaseId ?? Number.NaN)
+          if (!node || !Number.isSafeInteger(id) || id <= 0) {
+            return yield* new GitHubApiError({
+              operation: "search pull requests",
+              message: "GitHub left a pull request out of the search. Try again.",
+            })
+          }
+          prs.push(toPR(node, id, settings.username))
+        }
         if (!page.pageInfo.hasNextPage || !page.pageInfo.endCursor) return prs
         after = page.pageInfo.endCursor
       }
@@ -328,9 +355,9 @@ export const GitHubPRSourceLive = Layer.effect(
       // A review list never holds the user's own pull requests, even ones assigned to the user.
       const [authored, requested, assigned] = yield* Effect.all(
         [
-          search(settings.token, `${open} author:${user}`),
-          search(settings.token, `${open} -author:${user} review-requested:${user}`),
-          search(settings.token, `${open} -author:${user} assignee:${user}`),
+          search(settings, `${open} author:${user}`),
+          search(settings, `${open} -author:${user} review-requested:${user}`),
+          search(settings, `${open} -author:${user} assignee:${user}`),
         ],
         { concurrency: "unbounded" },
       )
