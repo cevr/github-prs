@@ -22,16 +22,20 @@ const SEARCH_PAGE_SIZE = 100
 // One search returns every open pull request with what its review status needs, instead of a search
 // followed by a timeline request per pull request. Nested lists keep their latest entries; the
 // viewer's own verdict is read on its own, so it never depends on how many others reviewed.
+const VERDICT_FRAGMENTS = `
+fragment Verdict on PullRequestReview { state submittedAt author { __typename login avatarUrl(size: 48) } }
+fragment Verdicts on PullRequestReviewConnection { pageInfo { hasNextPage endCursor } nodes { ...Verdict } }`
+
 const SEARCH_QUERY = `
 query PullRequests($query: String!, $after: String, $viewer: String!) {
   search(query: $query, type: ISSUE, first: ${SEARCH_PAGE_SIZE}, after: $after) {
     pageInfo { hasNextPage endCursor }
     nodes {
       ... on PullRequest {
-        fullDatabaseId number title url updatedAt isDraft reviewDecision mergeable
+        id fullDatabaseId number title url updatedAt isDraft reviewDecision mergeable
         author { __typename login avatarUrl(size: 48) }
         repository { nameWithOwner }
-        latestOpinionatedReviews(first: 100) { nodes { ...Verdict } }
+        latestOpinionatedReviews(first: 100) { ...Verdicts }
         latestReviews(first: 100) { nodes { ...Verdict } }
         viewerOpinion: reviews(last: 1, author: $viewer, states: [APPROVED, CHANGES_REQUESTED, DISMISSED]) {
           nodes { ...Verdict }
@@ -54,7 +58,15 @@ query PullRequests($query: String!, $after: String, $viewer: String!) {
     }
   }
 }
-fragment Verdict on PullRequestReview { state submittedAt author { __typename login avatarUrl(size: 48) } }`
+${VERDICT_FRAGMENTS}`
+
+// Standing verdicts past the first page, for a pull request with more than 100 reviewers: without
+// branch rules, one change request among them decides its stage.
+const MORE_VERDICTS_QUERY = `
+query MoreVerdicts($id: ID!, $after: String) {
+  node(id: $id) { ... on PullRequest { latestOpinionatedReviews(first: 100, after: $after) { ...Verdicts } } }
+}
+${VERDICT_FRAGMENTS}`
 
 const Actor = Schema.NullOr(
   Schema.Struct({
@@ -68,6 +80,17 @@ type Actor = typeof Actor.Type
 /** A GraphQL connection: GitHub may null the list, or an entry the token cannot read. */
 const connection = <S extends Schema.Top>(node: S) =>
   Schema.NullOr(Schema.Struct({ nodes: Schema.NullOr(Schema.Array(Schema.NullOr(node))) }))
+
+const PageInfo = Schema.Struct({
+  hasNextPage: Schema.Boolean,
+  endCursor: Schema.NullOr(Schema.String),
+})
+
+/** A connection read page by page. */
+const pagedConnection = <S extends Schema.Top>(node: S) =>
+  Schema.NullOr(
+    Schema.Struct({ pageInfo: PageInfo, nodes: Schema.NullOr(Schema.Array(Schema.NullOr(node))) }),
+  )
 
 function nodesOf<A>(list: { readonly nodes: ReadonlyArray<A | null> | null } | null): A[] {
   return (list?.nodes ?? []).filter((node): node is A => node !== null)
@@ -96,6 +119,7 @@ const TimelineNode = Schema.Struct({
 })
 
 const PullRequestNode = Schema.Struct({
+  id: Schema.String,
   // A 64-bit ID as a string; the older `databaseId` is deprecated because it can overflow to null.
   fullDatabaseId: Schema.NullOr(Schema.String),
   number: Schema.Number,
@@ -109,7 +133,7 @@ const PullRequestNode = Schema.Struct({
   mergeable: Schema.String,
   author: Actor,
   repository: Schema.Struct({ nameWithOwner: Schema.String }),
-  latestOpinionatedReviews: connection(ReviewNode),
+  latestOpinionatedReviews: pagedConnection(ReviewNode),
   latestReviews: connection(ReviewNode),
   viewerOpinion: connection(ReviewNode),
   viewerComment: connection(ReviewNode),
@@ -129,24 +153,23 @@ const PullRequestNode = Schema.Struct({
 })
 type PullRequestNode = typeof PullRequestNode.Type
 
-const SearchResponse = Schema.Struct({
-  data: Schema.optionalKey(
-    Schema.NullOr(
-      Schema.Struct({
-        search: Schema.Struct({
-          pageInfo: Schema.Struct({
-            hasNextPage: Schema.Boolean,
-            endCursor: Schema.NullOr(Schema.String),
-          }),
-          nodes: Schema.Array(Schema.NullOr(PullRequestNode)),
-        }),
-      }),
-    ),
-  ),
-  errors: Schema.optionalKey(Schema.Array(Schema.Struct({ message: Schema.String }))),
-})
+const graphqlResponse = <S extends Schema.Top>(data: S) =>
+  Schema.Struct({
+    data: Schema.optionalKey(Schema.NullOr(data)),
+    errors: Schema.optionalKey(Schema.Array(Schema.Struct({ message: Schema.String }))),
+  })
 
-type SearchPage = NonNullable<(typeof SearchResponse.Type)["data"]>["search"]
+const SearchData = Schema.Struct({
+  search: Schema.Struct({
+    pageInfo: PageInfo,
+    nodes: Schema.Array(Schema.NullOr(PullRequestNode)),
+  }),
+})
+type SearchPage = (typeof SearchData.Type)["search"]
+
+const MoreVerdictsData = Schema.Struct({
+  node: Schema.NullOr(Schema.Struct({ latestOpinionatedReviews: pagedConnection(ReviewNode) })),
+})
 
 const VERDICTS: Readonly<Record<string, ReviewVerdict>> = {
   APPROVED: "approved",
@@ -286,44 +309,88 @@ export const GitHubPRSourceLive = Layer.effect(
   Effect.gen(function* () {
     const client = yield* HttpClient.HttpClient
 
-    const searchPage = Effect.fn("GitHubPRSource.searchPage")(function* (
+    const graphql = Effect.fn("GitHubPRSource.graphql")(function* <S extends Schema.Top>(
       token: string,
-      viewer: string,
+      operation: string,
       query: string,
-      after: string | null,
+      variables: Record<string, string | null>,
+      data: S,
     ) {
       const request = HttpClientRequest.post(GRAPHQL_URL).pipe(
         HttpClientRequest.setHeader("authorization", `Bearer ${token}`),
         HttpClientRequest.setHeader("accept", "application/vnd.github+json"),
-        HttpClientRequest.bodyJsonUnsafe({
-          query: SEARCH_QUERY,
-          variables: { query, after, viewer },
-        }),
+        HttpClientRequest.bodyJsonUnsafe({ query, variables }),
       )
       const response = yield* client
         .execute(request)
-        .pipe(Effect.mapError((cause) => requestError("search pull requests", cause)))
+        .pipe(Effect.mapError((cause) => requestError(operation, cause)))
       if (response.status === 401) {
         return yield* new GitHubAuthenticationError({
           message: "GitHub rejected the saved account credentials.",
         })
       }
       if (response.status < 200 || response.status >= 300) {
-        return yield* requestError("search pull requests", undefined, response.status)
+        return yield* requestError(operation, undefined, response.status)
       }
-      const body = yield* HttpClientResponse.schemaBodyJson(SearchResponse)(response).pipe(
-        Effect.mapError((cause) => requestError("decode pull request search results", cause)),
+      const body = yield* HttpClientResponse.schemaBodyJson(graphqlResponse(data))(response).pipe(
+        Effect.mapError((cause) => requestError(`decode the answer to ${operation}`, cause)),
       )
       // A partial answer would publish as complete and drop pull requests with their seen state, so
       // any error fails the refresh and the saved snapshot stays.
       const message = body.errors?.map((error) => error.message).join(" ")
       if (!body.data || message) {
         return yield* new GitHubApiError({
-          operation: "search pull requests",
-          message: message ?? "GitHub returned no pull requests.",
+          operation,
+          message: message ?? `GitHub could not ${operation}.`,
         })
       }
-      return body.data.search
+      return body.data as S["Type"]
+    })
+
+    const searchPage = (settings: TrackerSettings, query: string, after: string | null) =>
+      graphql(
+        settings.token,
+        "search pull requests",
+        SEARCH_QUERY,
+        { query, after, viewer: settings.username },
+        SearchData,
+      ).pipe(Effect.map((data) => data.search))
+
+    /** Reads the standing verdicts GitHub left past the first page into the pull request. */
+    const withAllVerdicts = Effect.fn("GitHubPRSource.withAllVerdicts")(function* (
+      token: string,
+      node: PullRequestNode,
+    ) {
+      const first = node.latestOpinionatedReviews
+      if (!first?.pageInfo.hasNextPage) return node
+      const verdicts = nodesOf(first)
+      let after = first.pageInfo.endCursor
+      while (after !== null) {
+        const page = yield* graphql(
+          token,
+          "load a pull request's reviews",
+          MORE_VERDICTS_QUERY,
+          { id: node.id, after },
+          MoreVerdictsData,
+        )
+        const more = page.node?.latestOpinionatedReviews
+        if (!more) {
+          return yield* new GitHubApiError({
+            operation: "load a pull request's reviews",
+            message: "GitHub left out part of a pull request's reviews. Try again.",
+          })
+        }
+        verdicts.push(...nodesOf(more))
+        after = null
+        if (more.pageInfo.hasNextPage) after = more.pageInfo.endCursor
+      }
+      return {
+        ...node,
+        latestOpinionatedReviews: {
+          pageInfo: { hasNextPage: false, endCursor: null },
+          nodes: verdicts,
+        },
+      }
     })
 
     const search = Effect.fn("GitHubPRSource.search")(function* (
@@ -333,7 +400,7 @@ export const GitHubPRSourceLive = Layer.effect(
       const prs: PR[] = []
       let after: string | null = null
       while (true) {
-        const page: SearchPage = yield* searchPage(settings.token, settings.username, query, after)
+        const page: SearchPage = yield* searchPage(settings, query, after)
         for (const node of page.nodes) {
           const id = Number(node?.fullDatabaseId ?? Number.NaN)
           if (!node || !Number.isSafeInteger(id) || id <= 0) {
@@ -342,7 +409,7 @@ export const GitHubPRSourceLive = Layer.effect(
               message: "GitHub left a pull request out of the search. Try again.",
             })
           }
-          prs.push(toPR(node, id, settings.username))
+          prs.push(toPR(yield* withAllVerdicts(settings.token, node), id, settings.username))
         }
         if (!page.pageInfo.hasNextPage || !page.pageInfo.endCursor) return prs
         after = page.pageInfo.endCursor

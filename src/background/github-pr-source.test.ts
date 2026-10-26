@@ -14,7 +14,11 @@ const settings: TrackerSettings = {
 const decodeSearchRequest = Schema.decodeUnknownEffect(
   Schema.fromJsonString(
     Schema.Struct({
-      variables: Schema.Struct({ query: Schema.String, after: Schema.NullOr(Schema.String) }),
+      variables: Schema.Struct({
+        query: Schema.optionalKey(Schema.String),
+        id: Schema.optionalKey(Schema.String),
+        after: Schema.NullOr(Schema.String),
+      }),
     }),
   ),
 )
@@ -22,9 +26,14 @@ const decodeSearchRequest = Schema.decodeUnknownEffect(
 const user = (login: string) => ({ __typename: "User", login, avatarUrl: `https://a/${login}` })
 const bot = (login: string) => ({ __typename: "Bot", login, avatarUrl: `https://a/${login}` })
 const nodes = <A>(list: readonly A[]) => ({ nodes: list })
+const verdicts = <A>(list: readonly A[], endCursor: string | null = null) => ({
+  pageInfo: { hasNextPage: endCursor !== null, endCursor },
+  nodes: list,
+})
 
 function pullRequest(id: number, overrides: Record<string, unknown> = {}) {
   return {
+    id: `PR_${id}`,
     fullDatabaseId: String(id),
     number: id,
     title: `Pull request ${id}`,
@@ -35,7 +44,7 @@ function pullRequest(id: number, overrides: Record<string, unknown> = {}) {
     mergeable: "MERGEABLE",
     author: user("cevr"),
     repository: { nameWithOwner: "acme/tracker" },
-    latestOpinionatedReviews: nodes([]),
+    latestOpinionatedReviews: verdicts([]),
     latestReviews: nodes([]),
     viewerOpinion: nodes([]),
     viewerComment: nodes([]),
@@ -52,9 +61,16 @@ function searchPage(list: readonly unknown[], endCursor: string | null = null) {
   }
 }
 
-/** A GraphQL endpoint that answers each search query from `answer`, and records what was asked. */
-function graphql(answer: (query: string, after: string | null) => unknown) {
-  const asked: Array<{ query: string; after: string | null }> = []
+/**
+ * A GraphQL endpoint that answers each search from `answer`, and each request for more of a pull
+ * request's verdicts (named by its node `id`, with no search query) from `more`. It records what was
+ * asked.
+ */
+function graphql(
+  answer: (query: string, after: string | null) => unknown,
+  more: (id: string, after: string | null) => unknown = () => ({ data: { node: null } }),
+) {
+  const asked: Array<{ query?: string; id?: string; after: string | null }> = []
   const client = HttpClient.make((request) =>
     Effect.gen(function* () {
       const body = request.body
@@ -63,6 +79,9 @@ function graphql(answer: (query: string, after: string | null) => unknown) {
         Effect.orDie,
       )
       asked.push(variables)
+      if (variables.query === undefined) {
+        return jsonResponse(request, more(variables.id ?? "", variables.after))
+      }
       return jsonResponse(request, answer(variables.query, variables.after))
     }),
   )
@@ -103,7 +122,7 @@ describe("GitHub PR source", () => {
 
       const result = yield* fetchGitHubPullRequests(settings).pipe(Effect.provide(layer))
 
-      const reviewQueries = asked.filter(({ query }) => !query.endsWith(" author:cevr"))
+      const reviewQueries = asked.filter(({ query }) => !query?.endsWith(" author:cevr"))
       expect(reviewQueries).toHaveLength(2)
       for (const { query } of reviewQueries) expect(query).toContain("-author:cevr")
       expect(result.reviewing.map((pr) => pr.id)).toEqual([10, 11])
@@ -128,7 +147,7 @@ describe("GitHub PR source", () => {
               },
               { state: "COMMENTED", submittedAt: "2026-08-05T10:10:00Z", author: user("hubot") },
             ]),
-            latestOpinionatedReviews: nodes([
+            latestOpinionatedReviews: verdicts([
               { state: "APPROVED", submittedAt: "2026-08-05T10:00:00Z", author: user("monalisa") },
             ]),
             reviewRequests: nodes([
@@ -208,6 +227,48 @@ describe("GitHub PR source", () => {
         ["changes_requested"],
         ["commented"],
       ])
+    }),
+  )
+
+  it.effect("reads every standing verdict of a pull request with more than one page of them", () =>
+    Effect.gen(function* () {
+      const { asked, layer } = graphql(
+        (query) => {
+          if (query.includes("-author")) return searchPage([])
+          return searchPage([
+            pullRequest(1, {
+              latestOpinionatedReviews: verdicts(
+                [
+                  {
+                    state: "APPROVED",
+                    submittedAt: "2026-08-05T10:00:00Z",
+                    author: user("octocat"),
+                  },
+                ],
+                "verdicts-2",
+              ),
+            }),
+          ])
+        },
+        (id, after) => {
+          if (id !== "PR_1" || after !== "verdicts-2")
+            return { errors: [{ message: "wrong page" }] }
+          const changes = {
+            state: "CHANGES_REQUESTED",
+            submittedAt: "2026-08-05T11:00:00Z",
+            author: user("monalisa"),
+          }
+          return { data: { node: { latestOpinionatedReviews: verdicts([changes]) } } }
+        },
+      )
+
+      const [pr] = (yield* fetchGitHubPullRequests(settings).pipe(Effect.provide(layer))).authored
+
+      expect(pr?.reviews.map((review) => [review.reviewer.login, review.verdict])).toEqual([
+        ["octocat", "approved"],
+        ["monalisa", "changes_requested"],
+      ])
+      expect(asked.filter(({ id }) => id === "PR_1")).toHaveLength(1)
     }),
   )
 
