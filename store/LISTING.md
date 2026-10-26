@@ -6,7 +6,9 @@ GitHub PR Tracker
 
 ## Summary
 
-Your GitHub pull requests and review requests in Chrome's side panel, stacks kept together, ordered by review status.
+The store takes the summary from the `description` in `manifest.json`; the dashboard cannot edit it. Change it there, in a release:
+
+Track your authored and review-requested GitHub pull requests, ordered by review status, in Chrome's side panel.
 
 ## Detailed description
 
