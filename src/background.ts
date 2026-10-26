@@ -63,9 +63,13 @@ void run(
   }),
 )
 
+// An install, an update or a reload of the extension refreshes at once: a new version may read
+// more from GitHub than the saved snapshot holds, and the next alarm can be an interval away.
 chrome.runtime.onInstalled.addListener(() => {
   void run(
-    Effect.flatMap(initializeTrackerSettings, (settings) => setupAlarm(settings.checkInterval)),
+    Effect.flatMap(initializeTrackerSettings, (settings) =>
+      Effect.andThen(setupAlarm(settings.checkInterval), refreshPullRequests),
+    ),
   )
 })
 
