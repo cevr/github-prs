@@ -2,7 +2,7 @@ import { createMemo, createSignal, For, Match, onSettled, Show, Switch } from "s
 import { Errored, Loading } from "@solidjs/web"
 import { getErrorMessage } from "@/lib/format"
 import { createPRCollection } from "@/lib/pr-collection"
-import type { PRCollection } from "@/lib/pr-collection"
+import type { PRCollection, PRCollectionEntry, PRCollectionItem } from "@/lib/pr-collection"
 import type { Perspective } from "@/lib/pr-status"
 import { usePRSnapshot } from "@/lib/use-pr-snapshot"
 import type { CachedPRSnapshot } from "@/lib/use-pr-snapshot"
@@ -10,6 +10,7 @@ import type { SyncState } from "@/types"
 import { EmptyState } from "./components/empty-state"
 import { Header, RefreshButton, SettingsButton } from "./components/header"
 import { PRSection } from "./components/pr-section"
+import { PRStack } from "./components/pr-stack"
 import { AuthoredRow, ReviewRow } from "./components/pr-row"
 import { SetupPrompt } from "./components/setup-prompt"
 import { PERSPECTIVE } from "./components/stage"
@@ -20,6 +21,16 @@ import { setupKeyboardNav } from "./lib/keyboard"
 import { TrackerProvider, useTracker } from "./tracker"
 
 const PERSPECTIVES: readonly Perspective[] = ["authored", "reviewing"]
+
+function single(entry: PRCollectionEntry): PRCollectionItem | undefined {
+  if (entry.kind === "single") return entry.item
+  return undefined
+}
+
+function stack(entry: PRCollectionEntry) {
+  if (entry.kind === "stack") return entry
+  return undefined
+}
 
 function SyncErrorBanner() {
   const { actions } = useTracker()
@@ -57,6 +68,17 @@ function PRList(props: {
   readonly viewer: string
   readonly sections: CollapsedSections
 }) {
+  const row = (item: PRCollectionItem) => (
+    <Switch>
+      <Match when={props.perspective === "authored"}>
+        <AuthoredRow item={item} />
+      </Match>
+      <Match when={props.perspective === "reviewing"}>
+        <ReviewRow item={item} viewer={props.viewer} />
+      </Match>
+    </Switch>
+  )
+
   return (
     <Show
       when={props.collection.sections.length > 0}
@@ -66,21 +88,23 @@ function PRList(props: {
         {(section) => (
           <PRSection
             stage={section().stage}
-            count={section().items.length}
-            unseen={section().items.filter((item) => item.unseen).length}
+            count={section().count}
+            unseen={section().unseen}
             collapsed={props.sections.isCollapsed(props.perspective, section().stage)}
             onToggle={() => props.sections.toggle(props.perspective, section().stage)}
           >
-            <For each={section().items} keyed={(item) => item.pr.id}>
-              {(item) => (
-                <Switch>
-                  <Match when={props.perspective === "authored"}>
-                    <AuthoredRow item={item()} />
-                  </Match>
-                  <Match when={props.perspective === "reviewing"}>
-                    <ReviewRow item={item()} viewer={props.viewer} />
-                  </Match>
-                </Switch>
+            <For each={section().entries} keyed={(entry) => entry.key}>
+              {(entry) => (
+                <li>
+                  <Switch>
+                    <Match when={single(entry())}>{(only) => row(only())}</Match>
+                    <Match when={stack(entry())}>
+                      {(stacked) => (
+                        <PRStack items={stacked().items} base={stacked().base} row={row} />
+                      )}
+                    </Match>
+                  </Switch>
+                </li>
               )}
             </For>
           </PRSection>

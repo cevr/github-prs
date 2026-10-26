@@ -37,6 +37,8 @@ const local = {
     authored: [
       pr(482, "cevr/github-prs", "Order pull requests by review status", "2026-07-16T19:42:00Z", {
         decision: "APPROVED",
+        baseRef: "graphql-search",
+        headRef: "status-order",
         reviews: [review("octocat", "approved", "2026-07-16T19:40:00Z")],
         requestedReviewers: [person("hubot")],
       }),
@@ -46,6 +48,8 @@ const local = {
         "Load pull requests through one GraphQL search",
         "2026-07-16T18:05:00Z",
         {
+          baseRef: "main",
+          headRef: "graphql-search",
           reviews: [
             review("monalisa", "changes_requested", "2026-07-16T18:00:00Z"),
             review("octocat", "commented", "2026-07-16T17:10:00Z"),
@@ -53,6 +57,11 @@ const local = {
           lastComment: { by: "monalisa", at: "2026-07-16T18:01:00Z" },
         },
       ),
+      pr(486, "cevr/github-prs", "Group stacked pull requests", "2026-07-16T20:02:00Z", {
+        draft: true,
+        baseRef: "status-order",
+        headRef: "stacks",
+      }),
       pr(197, "cevr/okra", "Retry counsel turns that time out", "2026-07-15T16:10:00Z", {
         decision: "REVIEW_REQUIRED",
         reviews: [review("hubot", "commented", "2026-07-15T16:00:00Z")],

@@ -33,6 +33,7 @@ query PullRequests($query: String!, $after: String, $viewer: String!) {
     nodes {
       ... on PullRequest {
         id fullDatabaseId number title url updatedAt isDraft reviewDecision mergeable
+        baseRefName headRefName isCrossRepository
         author { __typename login avatarUrl(size: 48) }
         repository { nameWithOwner }
         latestOpinionatedReviews(first: 100) { ...Verdicts }
@@ -131,6 +132,9 @@ const PullRequestNode = Schema.Struct({
     Schema.Literals(["APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED"]),
   ),
   mergeable: Schema.String,
+  baseRefName: Schema.String,
+  headRefName: Schema.String,
+  isCrossRepository: Schema.Boolean,
   author: Actor,
   repository: Schema.Struct({ nameWithOwner: Schema.String }),
   latestOpinionatedReviews: pagedConnection(ReviewNode),
@@ -258,6 +262,12 @@ function lastCommentOf(node: PullRequestNode): Activity | undefined {
   return { by: comment.author.login, at: comment.createdAt }
 }
 
+/** A fork's branch is not one another pull request in this repository can be stacked on. */
+function headRefOf(node: PullRequestNode): string | undefined {
+  if (node.isCrossRepository) return undefined
+  return node.headRefName
+}
+
 function toPR(node: PullRequestNode, id: number, viewer: string): PR {
   const author = node.author?.login ?? "ghost"
   return {
@@ -271,6 +281,8 @@ function toPR(node: PullRequestNode, id: number, viewer: string): PR {
     draft: node.isDraft,
     decision: decisionOf(node),
     conflicting: node.mergeable === "CONFLICTING",
+    baseRef: node.baseRefName,
+    headRef: headRefOf(node),
     reviews: reviewsOf(node, author, viewer),
     requestedReviewers: requestedReviewersOf(node),
     lastActivity: lastActivityOf(node),

@@ -11,7 +11,7 @@ import { TONE_TEXT, VERDICT } from "./stage"
 const RowContext = createContext<Accessor<PRCollectionItem>>()
 
 /**
- * One pull request: a link to it on GitHub that marks it seen. Its parts sit on a two-line grid, title
+ * One pull request: a link to it on GitHub that marks it seen. The list it sits in owns its item. Its parts sit on a two-line grid, title
  * and time above, details and people below; the authored and reviewing rows compose them differently.
  */
 function Root(props: ParentProps<{ readonly item: PRCollectionItem }>) {
@@ -19,26 +19,24 @@ function Root(props: ParentProps<{ readonly item: PRCollectionItem }>) {
   const item = () => props.item
 
   return (
-    <li>
-      <a
-        href={item().pr.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        data-pr-row
-        data-unseen={item().unseen}
-        onClick={() => actions.markSeen(item().pr.id)}
-        class="group/row grid grid-cols-[6px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1 px-3 py-2 text-fg no-underline outline-none transition-[background-color] duration-100 ease-out hover:bg-surface focus-visible:bg-surface focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-      >
-        <span
-          aria-hidden="true"
-          class="col-start-1 row-start-1 size-1.5 rounded-full bg-accent opacity-0 scale-50 transition-[opacity,scale] duration-150 ease-out group-data-unseen/row:opacity-100 group-data-unseen/row:scale-100"
-        />
-        <Show when={item().unseen}>
-          <span class="sr-only">Unseen activity. </span>
-        </Show>
-        <RowContext value={item}>{props.children}</RowContext>
-      </a>
-    </li>
+    <a
+      href={item().pr.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-pr-row
+      data-unseen={item().unseen}
+      onClick={() => actions.markSeen(item().pr.id)}
+      class="group/row grid grid-cols-[6px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1 px-3 py-2 text-fg no-underline outline-none transition-[background-color] duration-100 ease-out hover:bg-surface focus-visible:bg-surface focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+    >
+      <span
+        aria-hidden="true"
+        class="col-start-1 row-start-1 size-1.5 rounded-full bg-accent opacity-0 scale-50 transition-[opacity,scale] duration-150 ease-out group-data-unseen/row:opacity-100 group-data-unseen/row:scale-100"
+      />
+      <Show when={item().unseen}>
+        <span class="sr-only">Unseen activity. </span>
+      </Show>
+      <RowContext value={item}>{props.children}</RowContext>
+    </a>
   )
 }
 

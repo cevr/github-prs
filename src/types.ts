@@ -31,6 +31,13 @@ export const PR = Schema.Struct({
   /** GitHub's review decision under the base branch's rules; null when the branch requires no review. */
   decision: Schema.NullOr(Schema.Literals(["approved", "changes_requested", "review_required"])),
   conflicting: Schema.Boolean,
+  /**
+   * The branch the pull request merges into, and its own branch when that lives in the same
+   * repository. A pull request whose base is another's head is stacked on it. Snapshots saved before
+   * 1.3 lack both.
+   */
+  baseRef: Schema.optional(Schema.String),
+  headRef: Schema.optional(Schema.String),
   /** One per human reviewer other than the author. */
   reviews: Schema.Array(Review),
   /** People asked to review who have not answered since they were asked. */

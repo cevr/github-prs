@@ -27,7 +27,8 @@ src/
 ├── settings/                # Tracker Settings storage and validation
 ├── lib/
 │   ├── pr-status.ts         # Stages per perspective and their order
-│   ├── pr-collection.ts     # PRs → sections by stage, newest first
+│   ├── pr-collection.ts     # PRs → sections by stage, newest first; stacks kept together
+│   ├── pr-stacks.ts         # Stacks: base branch = another's head branch, same repository
 │   ├── seen.ts              # The unseen rule shared by UI, badge and sync
 │   └── use-pr-snapshot.ts   # Solid model of the PR Snapshot for the side panel
 ├── sidepanel/
