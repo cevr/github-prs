@@ -12,7 +12,7 @@ _Avoid_: PR data, cache
 One perspective's pull requests in sections by stage, the user's next move first and newest activity first within a stage, including which entries need attention.
 
 **Stack**:
-Pull requests in one repository where each one's base branch is another's head branch, as gh-stack, Graphite and spr build them. A Stack stays together in a PR Collection, top first, in the section of its most urgent member; each member keeps its own Stage. Its header names the base branch and counts the members at each Stage.
+Pull requests in one repository where each one's base branch is another's head branch, as gh-stack, Graphite and spr build them. A Stack is its own section in a PR Collection, ahead of the Stage sections, its members top first; each member keeps its own Stage. Its heading leads with its first pull request, the one on the base branch, names the base branch and counts the members at each Stage. Stacks with a more urgent member come first.
 
 **Perspective**:
 The user's side of a pull request: its author (authored) or a reviewer (reviewing). The user's own pull requests never appear in the reviewing perspective, even when assigned to the user.

@@ -1,9 +1,10 @@
-import { createUniqueId, For, Show } from "solid-js"
+import { For, Show } from "solid-js"
 import { dynamic } from "@solidjs/web"
 import type { JSX } from "@solidjs/web"
-import type { PRCollectionItem } from "@/lib/pr-collection"
+import type { PRCollectionItem, PRCollectionStack } from "@/lib/pr-collection"
 import type { Stage } from "@/lib/pr-status"
-import { ChevronDownIcon, StackIcon } from "./icons"
+import { FoldSection } from "./fold-section"
+import { StackIcon } from "./icons"
 import { STAGE, TONE_TEXT } from "./stage"
 
 function StageIcon(props: { readonly stage: Stage; readonly class?: string }) {
@@ -30,7 +31,7 @@ function StageNode(props: { readonly item: PRCollectionItem }) {
 function TallyMark(props: { readonly stage: Stage; readonly count: number }) {
   const label = () => `${STAGE[props.stage].title}: ${props.count}`
   return (
-    <span title={label()} class="flex items-center gap-0.5 text-fg-muted tabular-nums">
+    <span title={label()} class="flex items-center gap-0.5 tabular-nums">
       <StageIcon stage={props.stage} class="size-3" />
       <span aria-hidden="true">{props.count}</span>
       <span class="sr-only">, {label()}</span>
@@ -39,11 +40,7 @@ function TallyMark(props: { readonly stage: Stage; readonly count: number }) {
 }
 
 interface PRStackProps {
-  /** Top of the stack first. */
-  readonly items: readonly PRCollectionItem[]
-  /** The branch the bottom pull request merges into. */
-  readonly base: string | undefined
-  readonly tally: readonly { readonly stage: Stage; readonly count: number }[]
+  readonly stack: PRCollectionStack
   readonly collapsed: boolean
   readonly onToggle: () => void
   /** Draws each member as its list does. */
@@ -51,79 +48,79 @@ interface PRStackProps {
 }
 
 /**
- * Pull requests stacked on one another. A header names the branch the stack merges into and counts
- * its members at each stage, so a folded stack still shows where it stands; below it the members sit
- * indented, top first, on a line through each one's stage. Folding is instant, as a section's is.
+ * Pull requests stacked on one another, as a section of their own. The heading leads with the
+ * stack's first pull request, the one on the base branch, for what the stack is about; below it the
+ * repository, the size, the base branch and a count of members at each stage, so a folded stack still
+ * shows where it stands. The members follow, top first, on a line through each one's stage.
  */
 export function PRStack(props: PRStackProps) {
-  const id = createUniqueId()
-  const expanded = () => {
-    if (props.collapsed) return "false"
-    return "true"
-  }
-  const unseen = () => props.items.filter((item) => item.unseen).length
+  const first = () => props.stack.first.pr
+  const repository = () => first().repository.split("/").at(-1) ?? first().repository
+  const size = () => `${props.stack.items.length} PRs`
   const label = () => {
-    if (!props.base) return `Stack of ${props.items.length}`
-    return `Stack of ${props.items.length} on ${props.base}`
+    if (!props.stack.base) return `Stack of ${props.stack.items.length}`
+    return `Stack of ${props.stack.items.length} on ${props.stack.base}`
   }
 
   return (
-    <>
-      <button
-        type="button"
-        aria-expanded={expanded()}
-        aria-controls={id}
-        onClick={() => props.onToggle()}
-        class="group/stack flex h-8 w-full items-center gap-1.5 border-0 bg-transparent px-3 text-left text-[11px] text-fg-muted transition-[background-color] duration-100 ease-out hover:bg-surface focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-      >
-        <StackIcon class="size-3.5 shrink-0 text-fg-muted" />
-        <span class="sr-only">{label()}</span>
-        <span aria-hidden="true" class="min-w-0 truncate font-mono text-fg">
-          {props.base ?? "Stack"}
-        </span>
-        <span aria-hidden="true" class="shrink-0 text-fg-subtle tabular-nums">
-          {props.items.length}
-        </span>
-        <Show when={props.collapsed && unseen() > 0}>
-          <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-accent" />
-          <span class="sr-only">, {unseen()} unseen</span>
-        </Show>
-        <span class="ml-auto flex shrink-0 items-center gap-2 pl-2">
-          <For each={props.tally} keyed={(mark) => mark.stage}>
-            {(mark) => <TallyMark stage={mark().stage} count={mark().count} />}
-          </For>
-        </span>
-        <ChevronDownIcon
-          class={[
-            "size-3.5 shrink-0 text-fg-subtle opacity-0 group-hover/stack:opacity-100 group-focus-visible/stack:opacity-100",
-            { "-rotate-90 opacity-100": props.collapsed },
-          ]}
-        />
-      </button>
-      <ol id={id} hidden={props.collapsed} aria-label={label()} class="m-0 list-none p-0 pl-3">
-        <For each={props.items} keyed={(item) => item.pr.id}>
-          {(item, index) => (
-            <li class="flex">
-              <span class="relative w-3.5 shrink-0">
-                <span
-                  class={[
-                    "absolute left-1/2 w-px -translate-x-1/2 bg-line",
-                    {
-                      // The first reaches up to the header's stack icon; the last ends at its node.
-                      "-top-2": index() === 0,
-                      "top-0": index() > 0,
-                      "bottom-0": index() < props.items.length - 1,
-                      "h-4": index() === props.items.length - 1,
-                    },
-                  ]}
-                />
-                <StageNode item={item()} />
+    <FoldSection.Root collapsed={props.collapsed} onToggle={props.onToggle}>
+      <FoldSection.Heading>
+        <StackIcon class="size-3.5 shrink-0 mt-px self-start text-fg-muted" />
+        <span class="grid min-w-0 flex-1 gap-0.5">
+          <span class="flex min-w-0 items-center gap-1.5">
+            <span class="truncate">{first().title}</span>
+            <FoldSection.Unseen count={props.stack.unseen} />
+          </span>
+          <span class="flex min-w-0 items-center gap-2 text-[11px] font-normal text-fg-muted">
+            {/* The repository gives way first: the base branch says more about the stack. */}
+            <span class="flex min-w-0 items-center">
+              <span title={first().repository} class="min-w-0 truncate">
+                {repository()}
               </span>
-              <div class="min-w-0 flex-1">{props.row(item())}</div>
-            </li>
-          )}
-        </For>
-      </ol>
-    </>
+              <span class="mx-1 shrink-0 text-fg-subtle">·</span>
+              <span class="max-w-[70%] shrink-0 truncate">
+                <span class="tabular-nums">{size()}</span>
+                <Show when={props.stack.base}>
+                  {(base) => (
+                    <>
+                      {" into "}
+                      <span class="font-mono text-fg">{base()}</span>
+                    </>
+                  )}
+                </Show>
+              </span>
+            </span>
+            <span class="ml-auto flex shrink-0 items-center gap-2">
+              <For each={props.stack.tally} keyed={(mark) => mark.stage}>
+                {(mark) => <TallyMark stage={mark().stage} count={mark().count} />}
+              </For>
+            </span>
+          </span>
+        </span>
+      </FoldSection.Heading>
+      <FoldSection.Body>
+        <ol aria-label={label()} class="m-0 list-none p-0 pb-1 pl-3">
+          <For each={props.stack.items} keyed={(item) => item.pr.id}>
+            {(item, index) => (
+              <li class="flex">
+                <span class="relative w-3.5 shrink-0">
+                  <span
+                    class={[
+                      "absolute top-0 left-1/2 w-px -translate-x-1/2 bg-line",
+                      {
+                        "bottom-0": index() < props.stack.items.length - 1,
+                        "h-4": index() === props.stack.items.length - 1,
+                      },
+                    ]}
+                  />
+                  <StageNode item={item()} />
+                </span>
+                <div class="min-w-0 flex-1">{props.row(item())}</div>
+              </li>
+            )}
+          </For>
+        </ol>
+      </FoldSection.Body>
+    </FoldSection.Root>
   )
 }

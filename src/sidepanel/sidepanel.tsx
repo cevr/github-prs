@@ -11,7 +11,7 @@ import {
 import { Errored, Loading } from "@solidjs/web"
 import { getErrorMessage } from "@/lib/format"
 import { createPRCollection } from "@/lib/pr-collection"
-import type { PRCollection, PRCollectionEntry, PRCollectionItem } from "@/lib/pr-collection"
+import type { PRCollection, PRCollectionItem } from "@/lib/pr-collection"
 import type { Perspective } from "@/lib/pr-status"
 import { usePRSnapshot } from "@/lib/use-pr-snapshot"
 import type { CachedPRSnapshot } from "@/lib/use-pr-snapshot"
@@ -30,16 +30,6 @@ import { setupKeyboardNav } from "./lib/keyboard"
 import { TrackerProvider, useTracker } from "./tracker"
 
 const PERSPECTIVES: readonly Perspective[] = ["authored", "reviewing"]
-
-function single(entry: PRCollectionEntry): PRCollectionItem | undefined {
-  if (entry.kind === "single") return entry.item
-  return undefined
-}
-
-function stack(entry: PRCollectionEntry) {
-  if (entry.kind === "stack") return entry
-  return undefined
-}
 
 function SyncErrorBanner() {
   const { actions } = useTracker()
@@ -90,38 +80,30 @@ function PRList(props: {
 
   return (
     <Show
-      when={props.collection.sections.length > 0}
+      when={props.collection.stacks.length > 0 || props.collection.sections.length > 0}
       fallback={<EmptyState perspective={props.perspective} />}
     >
+      <For each={props.collection.stacks} keyed={(stack) => stack.key}>
+        {(stack) => (
+          <PRStack
+            stack={stack()}
+            collapsed={props.folds.isStackFolded(props.perspective, stack().key)}
+            onToggle={() => props.folds.toggleStack(props.perspective, stack().key)}
+            row={row}
+          />
+        )}
+      </For>
       <For each={props.collection.sections} keyed={(section) => section.stage}>
         {(section) => (
           <PRSection
             stage={section().stage}
-            count={section().count}
+            count={section().items.length}
             unseen={section().unseen}
             collapsed={props.folds.isSectionFolded(props.perspective, section().stage)}
             onToggle={() => props.folds.toggleSection(props.perspective, section().stage)}
           >
-            <For each={section().entries} keyed={(entry) => entry.key}>
-              {(entry) => (
-                <li>
-                  <Switch>
-                    <Match when={single(entry())}>{(only) => row(only())}</Match>
-                    <Match when={stack(entry())}>
-                      {(stacked) => (
-                        <PRStack
-                          items={stacked().items}
-                          base={stacked().base}
-                          tally={stacked().tally}
-                          collapsed={props.folds.isStackFolded(props.perspective, stacked().key)}
-                          onToggle={() => props.folds.toggleStack(props.perspective, stacked().key)}
-                          row={row}
-                        />
-                      )}
-                    </Match>
-                  </Switch>
-                </li>
-              )}
+            <For each={section().items} keyed={(item) => item.pr.id}>
+              {(item) => <li>{row(item())}</li>}
             </For>
           </PRSection>
         )}
@@ -143,12 +125,7 @@ function Tracker(props: { readonly snapshot: CachedPRSnapshot; readonly sync: Sy
   createEffect(
     () =>
       PERSPECTIVES.flatMap((tab) =>
-        collections()[tab].sections.flatMap((section) =>
-          section.entries.flatMap((entry) => {
-            if (entry.kind === "stack") return [{ perspective: tab, stack: entry.key }]
-            return []
-          }),
-        ),
+        collections()[tab].stacks.map((stack) => ({ perspective: tab, stack: stack.key })),
       ),
     (live) => folds.keepStacks(live),
   )

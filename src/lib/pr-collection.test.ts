@@ -6,21 +6,15 @@ const T = "2026-07-16T10:00:00.000Z"
 
 type Collection = ReturnType<typeof createPRCollection>
 
-/** Each section's stage and entries: a lone pull request's id, or a stack's ids top first. */
+/** Each section's stage and the ids of its pull requests. */
 const stagesOf = (collection: Collection) =>
-  collection.sections.map((section) => [
-    section.stage,
-    section.entries.map((entry) => {
-      if (entry.kind === "stack") return entry.items.map((item) => item.pr.id)
-      return entry.item.pr.id
-    }),
-  ])
+  collection.sections.map((section) => [section.stage, section.items.map((item) => item.pr.id)])
 
-const firstItem = (collection: Collection) => {
-  const entry = collection.sections[0]?.entries[0]
-  if (entry?.kind === "single") return entry.item
-  return undefined
-}
+/** Each stack's ids, top first. */
+const stackIds = (collection: Collection) =>
+  collection.stacks.map((stack) => stack.items.map((item) => item.pr.id))
+
+const firstItem = (collection: Collection) => collection.sections[0]?.items[0]
 
 describe("PR collection", () => {
   test("orders the user's pull requests by what waits on them, then by recent activity", () => {
@@ -116,7 +110,7 @@ describe("PR collection", () => {
     expect(firstItem(collection)?.newComment).toBe(false)
   })
 
-  test("keeps a stack together at its most urgent member's stage, top first", () => {
+  test("sets stacks apart from the stages, top first, each led by its first pull request", () => {
     const branch = (id: number, base: string, overrides: Parameters<typeof pr>[0] = {}) =>
       pr({ id, baseRef: base, headRef: `stack-${id}`, ...overrides })
     const input = [
@@ -128,23 +122,52 @@ describe("PR collection", () => {
 
     const collection = createPRCollection(input, {}, { perspective: "authored", viewer: "cevr" })
 
-    expect(stagesOf(collection)).toEqual([
-      ["changes-requested", [[3, 2, 1]]],
-      ["approved", [4]],
-    ])
-    const stack = collection.sections[0]?.entries[0]
-    expect(stack?.kind === "stack" && stack.base).toBe("main")
-    expect(collection.sections[0]?.count).toBe(3)
-    expect(stack?.kind === "stack" && stack.items.map((item) => item.stage)).toEqual([
+    expect(stackIds(collection)).toEqual([[3, 2, 1]])
+    expect(stagesOf(collection)).toEqual([["approved", [4]]])
+    const [stack] = collection.stacks
+    expect(stack?.first.pr.id).toBe(1)
+    expect(stack?.base).toBe("main")
+    expect(stack?.items.map((item) => item.stage)).toEqual([
       "draft",
       "changes-requested",
       "approved",
     ])
-    expect(stack?.kind === "stack" && stack.tally).toEqual([
+    expect(stack?.tally).toEqual([
       { stage: "changes-requested", count: 1 },
       { stage: "approved", count: 1 },
       { stage: "draft", count: 1 },
     ])
+  })
+
+  test("puts the stack with the most urgent member first, then the most recent", () => {
+    const input = [
+      pr({ id: 1, baseRef: "main", headRef: "a", decision: "approved" }),
+      pr({ id: 2, baseRef: "a", headRef: "a-2", updatedAt: "2026-07-16T12:00:00.000Z" }),
+      pr({ id: 3, baseRef: "main", headRef: "b", updatedAt: "2026-07-16T08:00:00.000Z" }),
+      pr({
+        id: 4,
+        baseRef: "b",
+        headRef: "b-2",
+        reviews: [review("hubot", "changes_requested", T)],
+      }),
+      pr({ id: 5, baseRef: "main", headRef: "c", updatedAt: "2026-07-16T09:00:00.000Z" }),
+      pr({
+        id: 6,
+        baseRef: "c",
+        headRef: "c-2",
+        decision: "approved",
+        updatedAt: "2026-07-16T07:00:00.000Z",
+      }),
+    ]
+
+    const collection = createPRCollection(input, {}, { perspective: "authored", viewer: "cevr" })
+
+    expect(stackIds(collection)).toEqual([
+      [4, 3],
+      [2, 1],
+      [6, 5],
+    ])
+    expect(collection.sections).toEqual([])
   })
 
   test("stacks only within one repository", () => {
@@ -169,6 +192,7 @@ describe("PR collection", () => {
 
     const collection = createPRCollection(input, {}, { perspective: "authored", viewer: "cevr" })
 
-    expect(stagesOf(collection)).toEqual([["awaiting-review", [[4, 3, 2, 1]]]])
+    expect(stackIds(collection)).toEqual([[4, 3, 2, 1]])
+    expect(collection.sections).toEqual([])
   })
 })

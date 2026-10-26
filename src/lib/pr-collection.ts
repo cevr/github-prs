@@ -13,30 +13,31 @@ export interface PRCollectionItem {
   readonly newComment: boolean
 }
 
-/** One line of a section: a lone pull request, or a stack of them kept together. */
-export type PRCollectionEntry =
-  | { readonly kind: "single"; readonly key: string; readonly item: PRCollectionItem }
-  | {
-      readonly kind: "stack"
-      readonly key: string
-      /** Top of the stack first. Each member keeps its own stage. */
-      readonly items: readonly PRCollectionItem[]
-      readonly base: string | undefined
-      /** How many members sit at each stage, in the perspective's order: the stack at a glance. */
-      readonly tally: readonly { readonly stage: Stage; readonly count: number }[]
-    }
+/** Pull requests stacked on one another, shown as their own section ahead of the stages. */
+export interface PRCollectionStack {
+  readonly key: string
+  /** Top of the stack first. Each member keeps its own stage. */
+  readonly items: readonly PRCollectionItem[]
+  /** The stack's first pull request, the one on the base branch: what the stack is about. */
+  readonly first: PRCollectionItem
+  /** The branch the first pull request merges into. */
+  readonly base: string | undefined
+  /** How many members sit at each stage, in the perspective's order: the stack at a glance. */
+  readonly tally: readonly { readonly stage: Stage; readonly count: number }[]
+  readonly unseen: number
+}
 
-/** The entries at one stage, newest activity first. A stack sits at its most urgent member's stage. */
+/** The pull requests at one stage that are in no stack, newest activity first. */
 export interface PRCollectionSection {
   readonly stage: Stage
-  readonly entries: readonly PRCollectionEntry[]
-  /** Pull requests in the section, stack members included. */
-  readonly count: number
+  readonly items: readonly PRCollectionItem[]
   readonly unseen: number
 }
 
 export interface PRCollection {
-  /** Only stages that hold pull requests, in their perspective's order. */
+  /** Stacks, the one with the most urgent member first, then by newest activity. */
+  readonly stacks: readonly PRCollectionStack[]
+  /** Only stages that hold pull requests outside stacks, in their perspective's order. */
   readonly sections: readonly PRCollectionSection[]
   readonly totalCount: number
   readonly unseenCount: number
@@ -55,20 +56,6 @@ function hasNewComment(pr: PR, seen: Readonly<SeenPRs>, viewer: string): boolean
   return !seenAt || parseEpochMillis(pr.lastComment.at) > parseEpochMillis(seenAt)
 }
 
-function membersOf(entry: PRCollectionEntry): readonly PRCollectionItem[] {
-  if (entry.kind === "stack") return entry.items
-  return [entry.item]
-}
-
-/** The stage that comes first in the perspective's order: the one waiting on the user soonest. */
-function mostUrgent(stages: readonly Stage[], order: readonly Stage[]): Stage | undefined {
-  let urgent: Stage | undefined
-  for (const stage of stages) {
-    if (urgent === undefined || order.indexOf(stage) < order.indexOf(urgent)) urgent = stage
-  }
-  return urgent
-}
-
 function tallyOf(items: readonly PRCollectionItem[], order: readonly Stage[]) {
   const tally: Array<{ readonly stage: Stage; readonly count: number }> = []
   for (const stage of order) {
@@ -78,8 +65,8 @@ function tallyOf(items: readonly PRCollectionItem[], order: readonly Stage[]) {
   return tally
 }
 
-const newest = (items: readonly PRCollectionItem[]) =>
-  Math.max(...items.map((item) => parseEpochMillis(item.pr.updatedAt)))
+const activity = (item: PRCollectionItem) => parseEpochMillis(item.pr.updatedAt)
+const newest = (items: readonly PRCollectionItem[]) => Math.max(...items.map(activity))
 
 export function createPRCollection(
   prs: readonly PR[],
@@ -98,46 +85,47 @@ export function createPRCollection(
     }
   })
 
-  const byStage = new Map<Stage, PRCollectionEntry[]>()
+  const stacks: PRCollectionStack[] = []
+  const byStage = new Map<Stage, PRCollectionItem[]>()
   for (const stack of stacksOf(items)) {
-    const [first] = stack.members
-    if (!first) continue
-    let entry: PRCollectionEntry = { kind: "single", key: `pr-${first.pr.id}`, item: first }
-    let stage = first.stage
-    if (stack.members.length > 1) {
-      const bottom = stack.members.at(-1) ?? first
-      entry = {
-        kind: "stack",
-        key: `stack-${bottom.pr.id}`,
-        items: stack.members,
-        base: stack.base,
-        tally: tallyOf(stack.members, order),
-      }
-      stage =
-        mostUrgent(
-          stack.members.map((member) => member.stage),
-          order,
-        ) ?? first.stage
+    const [top] = stack.members
+    const first = stack.members.at(-1)
+    if (!top || !first) continue
+    if (stack.members.length === 1) {
+      const singles = byStage.get(top.stage)
+      if (singles) singles.push(top)
+      else byStage.set(top.stage, [top])
+      continue
     }
-    const entries = byStage.get(stage)
-    if (entries) entries.push(entry)
-    else byStage.set(stage, [entry])
+    stacks.push({
+      key: `stack-${first.pr.id}`,
+      items: stack.members,
+      first,
+      base: stack.base,
+      tally: tallyOf(stack.members, order),
+      unseen: stack.members.filter((member) => member.unseen).length,
+    })
   }
 
+  // A stack's tally runs in the perspective's order, so its first stage is its most urgent.
+  const urgency = (stack: PRCollectionStack) => {
+    const stage = stack.tally[0]?.stage
+    if (stage === undefined) return order.length
+    return order.indexOf(stage)
+  }
   const sections: PRCollectionSection[] = []
   for (const stage of order) {
-    const entries = byStage.get(stage)
-    if (!entries) continue
-    const members = entries.flatMap(membersOf)
+    const singles = byStage.get(stage)
+    if (!singles) continue
     sections.push({
       stage,
-      entries: entries.toSorted((a, b) => newest(membersOf(b)) - newest(membersOf(a))),
-      count: members.length,
-      unseen: members.filter((item) => item.unseen).length,
+      items: singles.toSorted((a, b) => activity(b) - activity(a)),
+      unseen: singles.filter((item) => item.unseen).length,
     })
   }
 
   return {
+    stacks: stacks.toSorted((a, b) => urgency(a) - urgency(b) || newest(b.items) - newest(a.items)),
     sections,
     totalCount: prs.length,
     unseenCount: items.filter((item) => item.unseen).length,
