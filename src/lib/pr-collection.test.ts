@@ -140,6 +140,11 @@ describe("PR collection", () => {
       "changes-requested",
       "approved",
     ])
+    expect(stack?.kind === "stack" && stack.tally).toEqual([
+      { stage: "changes-requested", count: 1 },
+      { stage: "approved", count: 1 },
+      { stage: "draft", count: 1 },
+    ])
   })
 
   test("stacks only within one repository", () => {

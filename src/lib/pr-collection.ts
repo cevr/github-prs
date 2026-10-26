@@ -22,6 +22,8 @@ export type PRCollectionEntry =
       /** Top of the stack first. Each member keeps its own stage. */
       readonly items: readonly PRCollectionItem[]
       readonly base: string | undefined
+      /** How many members sit at each stage, in the perspective's order: the stack at a glance. */
+      readonly tally: readonly { readonly stage: Stage; readonly count: number }[]
     }
 
 /** The entries at one stage, newest activity first. A stack sits at its most urgent member's stage. */
@@ -67,6 +69,15 @@ function mostUrgent(stages: readonly Stage[], order: readonly Stage[]): Stage | 
   return urgent
 }
 
+function tallyOf(items: readonly PRCollectionItem[], order: readonly Stage[]) {
+  const tally: Array<{ readonly stage: Stage; readonly count: number }> = []
+  for (const stage of order) {
+    const count = items.filter((item) => item.stage === stage).length
+    if (count > 0) tally.push({ stage, count })
+  }
+  return tally
+}
+
 const newest = (items: readonly PRCollectionItem[]) =>
   Math.max(...items.map((item) => parseEpochMillis(item.pr.updatedAt)))
 
@@ -100,6 +111,7 @@ export function createPRCollection(
         key: `stack-${bottom.pr.id}`,
         items: stack.members,
         base: stack.base,
+        tally: tallyOf(stack.members, order),
       }
       stage =
         mostUrgent(

@@ -34,7 +34,8 @@ src/
 ├── sidepanel/
 │   ├── sidepanel.tsx        # Composition: TrackerProvider → Header, Tabs, PRList
 │   ├── tracker.tsx          # Context: state (snapshot) + actions (refresh, markSeen, openSettings)
-│   └── components/          # Tabs.*, PRRow.* (AuthoredRow, ReviewRow), PRSection, Avatar, icons
+│   ├── lib/folds.ts         # Folded sections and stacks, kept in the panel's localStorage
+│   └── components/          # Tabs.*, PRRow.* (AuthoredRow, ReviewRow), PRSection, PRStack, Avatar, icons
 ├── options/                 # Settings page
 └── testing/pr-fixture.ts    # PR builders for tests
 store/fixtures/chrome-mock.js  # Chrome stand-in for rendering pages outside Chrome
@@ -43,7 +44,8 @@ store/fixtures/chrome-mock.js  # Chrome stand-in for rendering pages outside Chr
 ## Architecture
 
 - **Background** polls on an alarm and on demand. `GitHubPRSource` runs three searches: authored, review-requested and assigned, both review searches excluding the user's own pull requests.
-- **PR Collection** sorts one perspective into stages (`lib/pr-status.ts`); the side panel renders a section per stage.
+- **PR Collection** sorts one perspective into stages (`lib/pr-status.ts`); the side panel renders a section per stage. A stack renders as a foldable header (base branch, member count, count per stage) over its indented members.
+- **Side panel** refreshes once each time it opens (`use-pr-snapshot.ts`), showing the saved snapshot meanwhile.
 - **Side panel** parts read state and actions from `TrackerContext`; compound parts (`Tabs.*`, `PRRow.*`) compose the two row variants instead of boolean props.
 - **Message actions**: `checkNow`, `markPRViewed`, `updateSettings`, `prSnapshotChanged`, `setupNeeded`
 

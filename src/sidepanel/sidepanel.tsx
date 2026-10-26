@@ -1,4 +1,13 @@
-import { createMemo, createSignal, For, Match, onSettled, Show, Switch } from "solid-js"
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  Match,
+  onSettled,
+  Show,
+  Switch,
+} from "solid-js"
 import { Errored, Loading } from "@solidjs/web"
 import { getErrorMessage } from "@/lib/format"
 import { createPRCollection } from "@/lib/pr-collection"
@@ -15,8 +24,8 @@ import { AuthoredRow, ReviewRow } from "./components/pr-row"
 import { SetupPrompt } from "./components/setup-prompt"
 import { PERSPECTIVE } from "./components/stage"
 import { Tabs } from "./components/tabs"
-import { createCollapsedSections } from "./lib/collapsed-sections"
-import type { CollapsedSections } from "./lib/collapsed-sections"
+import { createFolds } from "./lib/folds"
+import type { Folds } from "./lib/folds"
 import { setupKeyboardNav } from "./lib/keyboard"
 import { TrackerProvider, useTracker } from "./tracker"
 
@@ -66,7 +75,7 @@ function PRList(props: {
   readonly perspective: Perspective
   readonly collection: PRCollection
   readonly viewer: string
-  readonly sections: CollapsedSections
+  readonly folds: Folds
 }) {
   const row = (item: PRCollectionItem) => (
     <Switch>
@@ -90,8 +99,8 @@ function PRList(props: {
             stage={section().stage}
             count={section().count}
             unseen={section().unseen}
-            collapsed={props.sections.isCollapsed(props.perspective, section().stage)}
-            onToggle={() => props.sections.toggle(props.perspective, section().stage)}
+            collapsed={props.folds.isSectionFolded(props.perspective, section().stage)}
+            onToggle={() => props.folds.toggleSection(props.perspective, section().stage)}
           >
             <For each={section().entries} keyed={(entry) => entry.key}>
               {(entry) => (
@@ -100,7 +109,14 @@ function PRList(props: {
                     <Match when={single(entry())}>{(only) => row(only())}</Match>
                     <Match when={stack(entry())}>
                       {(stacked) => (
-                        <PRStack items={stacked().items} base={stacked().base} row={row} />
+                        <PRStack
+                          items={stacked().items}
+                          base={stacked().base}
+                          tally={stacked().tally}
+                          collapsed={props.folds.isStackFolded(props.perspective, stacked().key)}
+                          onToggle={() => props.folds.toggleStack(props.perspective, stacked().key)}
+                          row={row}
+                        />
                       )}
                     </Match>
                   </Switch>
@@ -116,7 +132,7 @@ function PRList(props: {
 
 function Tracker(props: { readonly snapshot: CachedPRSnapshot; readonly sync: SyncState }) {
   const [perspective, setPerspective] = createSignal<Perspective>("authored")
-  const sections = createCollapsedSections()
+  const folds = createFolds()
   const collections = createMemo(() => {
     const { prs, seen, viewer } = props.snapshot
     return {
@@ -124,6 +140,18 @@ function Tracker(props: { readonly snapshot: CachedPRSnapshot; readonly sync: Sy
       reviewing: createPRCollection(prs.reviewing, seen, { perspective: "reviewing", viewer }),
     }
   })
+  createEffect(
+    () =>
+      PERSPECTIVES.flatMap((tab) =>
+        collections()[tab].sections.flatMap((section) =>
+          section.entries.flatMap((entry) => {
+            if (entry.kind === "stack") return [{ perspective: tab, stack: entry.key }]
+            return []
+          }),
+        ),
+      ),
+    (live) => folds.keepStacks(live),
+  )
   const choose = (value: string) => {
     const next = PERSPECTIVES.find((candidate) => candidate === value)
     if (next) setPerspective(next)
@@ -159,7 +187,7 @@ function Tracker(props: { readonly snapshot: CachedPRSnapshot; readonly sync: Sy
                 perspective={value}
                 collection={collections()[value]}
                 viewer={props.snapshot.viewer}
-                sections={sections}
+                folds={folds}
               />
             </Tabs.Panel>
           )}
