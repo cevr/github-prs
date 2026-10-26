@@ -27,11 +27,19 @@ function SidePanelContent() {
     if (current.kind === "unavailable") return current
     return undefined
   })
+  const viewer = () => available()?.snapshot.viewer ?? ""
   const mineCollection = createMemo(() =>
-    createPRCollection(available()?.snapshot.prs.created ?? [], available()?.snapshot.seen ?? {}),
+    createPRCollection(available()?.snapshot.prs.authored ?? [], available()?.snapshot.seen ?? {}, {
+      perspective: "authored",
+      viewer: viewer(),
+    }),
   )
   const reviewCollection = createMemo(() =>
-    createPRCollection(available()?.snapshot.prs.assigned ?? [], available()?.snapshot.seen ?? {}),
+    createPRCollection(
+      available()?.snapshot.prs.reviewing ?? [],
+      available()?.snapshot.seen ?? {},
+      { perspective: "reviewing", viewer: viewer() },
+    ),
   )
 
   return (
@@ -55,10 +63,9 @@ function SidePanelContent() {
       <Match when={available()}>
         {(data) => {
           const activeGroups = createMemo(() => {
-            if (activeTab() === "mine") return mineCollection().groups
-            return reviewCollection().groups
+            if (activeTab() === "mine") return mineCollection().sections
+            return reviewCollection().sections
           })
-          const showApproved = createMemo(() => activeTab() === "mine")
 
           return (
             <>
@@ -90,9 +97,8 @@ function SidePanelContent() {
                     <For each={activeGroups()}>
                       {(group) => (
                         <RepoGroup
-                          group={group}
+                          group={{ repo: group.stage, items: group.items }}
                           onMarkSeen={markSeen}
-                          showApproved={showApproved()}
                         />
                       )}
                     </For>

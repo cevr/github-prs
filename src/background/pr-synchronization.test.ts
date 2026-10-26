@@ -1,7 +1,8 @@
 import { DateTime, Deferred, Effect, Fiber, Layer } from "effect"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "effect-bun-test"
-import type { PR, PRData, SeenPRs, SyncState } from "@/types"
+import type { PRData, SeenPRs, SyncState } from "@/types"
+import { pr } from "@/testing/pr-fixture"
 import type { TrackerSettings } from "@/settings/tracker-settings"
 import { TrackerSettingsService } from "@/settings/tracker-settings"
 import { GitHubAuthenticationError, GitHubPRSource } from "./github-pr-source"
@@ -17,20 +18,6 @@ const settings: TrackerSettings = {
   username: "cevr",
   checkInterval: 15,
   hideInactivePRs: false,
-}
-
-function pr(overrides: Partial<PR> = {}): PR {
-  return {
-    id: overrides.id ?? 1,
-    number: overrides.number ?? 1,
-    title: overrides.title ?? "Deepen the synchronization module",
-    html_url: overrides.html_url ?? "https://github.com/acme/tracker/pull/1",
-    repository_url: overrides.repository_url ?? "https://api.github.com/repos/acme/tracker",
-    updated_at: overrides.updated_at ?? "2026-07-16T12:00:00.000Z",
-    user: overrides.user ?? { login: "cevr" },
-    isApproved: overrides.isApproved,
-    lastUpdatedBy: overrides.lastUpdatedBy,
-  }
 }
 
 function createHarness(initialSeen: SeenPRs = {}) {
@@ -127,7 +114,7 @@ describe("PR Synchronization", () => {
             fetchCount++
             yield* Deferred.succeed(fetchStarted, undefined)
             if (fetchCount === 1) yield* Deferred.await(releaseFirst)
-            return { created: [pr()], assigned: [] }
+            return { authored: [pr()], reviewing: [] }
           }),
         }),
       )
@@ -160,7 +147,10 @@ describe("PR Synchronization", () => {
         GitHubPRSource,
         GitHubPRSource.of({
           fetch: Effect.fn("GitHubPRSourceTest.fetch")(() =>
-            Effect.succeed({ created: [pr({ lastUpdatedBy: "cevr" })], assigned: [] }),
+            Effect.succeed({
+              authored: [pr({ lastActivity: { by: "Cevr", at: "2026-07-16T12:00:00.000Z" } })],
+              reviewing: [],
+            }),
           ),
         }),
       )

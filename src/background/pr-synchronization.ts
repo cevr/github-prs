@@ -1,6 +1,8 @@
 import { Context, DateTime, Effect, Layer, Result, Semaphore } from "effect"
+import { isUnseen } from "@/lib/seen"
 import { parseEpochMillis } from "@/lib/time"
 import { GitHubApiError, GitHubPRSource } from "./github-pr-source"
+import { sameLogin } from "@/types"
 import type { PR, PRData, SeenPRs, SyncState } from "@/types"
 import { isAccountConfigured, TrackerSettingsService } from "@/settings/tracker-settings"
 import type { TrackerSettingsStorageError } from "@/settings/tracker-settings"
@@ -22,17 +24,17 @@ export class PRSynchronization extends Context.Service<
 
 function uniquePRs(prs: PRData): readonly PR[] {
   const unique = new Map<number, PR>()
-  for (const pr of prs.created) unique.set(pr.id, pr)
-  for (const pr of prs.assigned) unique.set(pr.id, pr)
+  for (const pr of prs.authored) unique.set(pr.id, pr)
+  for (const pr of prs.reviewing) unique.set(pr.id, pr)
   return Array.from(unique.values())
 }
 
 function filterInactive(prs: PRData, now: DateTime.Utc): PRData {
   const activeSinceMillis = DateTime.toEpochMillis(DateTime.subtract(now, { months: 1 }))
-  const active = (pr: PR) => parseEpochMillis(pr.updated_at) >= activeSinceMillis
+  const active = (pr: PR) => parseEpochMillis(pr.updatedAt) >= activeSinceMillis
   return {
-    created: prs.created.filter(active),
-    assigned: prs.assigned.filter(active),
+    authored: prs.authored.filter(active),
+    reviewing: prs.reviewing.filter(active),
   }
 }
 
@@ -46,21 +48,20 @@ function reconcileSeen(prs: readonly PR[], seen: SeenPRs, username: string): See
   for (const pr of prs) {
     const prId = pr.id.toString()
     const seenAt = reconciled[prId]
+    const lastBy = pr.lastActivity?.by
     if (
-      pr.lastUpdatedBy === username &&
-      (!seenAt || parseEpochMillis(pr.updated_at) > parseEpochMillis(seenAt))
+      lastBy !== undefined &&
+      sameLogin(lastBy, username) &&
+      (!seenAt || parseEpochMillis(pr.updatedAt) > parseEpochMillis(seenAt))
     ) {
-      reconciled[prId] = pr.updated_at
+      reconciled[prId] = pr.updatedAt
     }
   }
   return reconciled
 }
 
 function hasUnseen(prs: readonly PR[], seen: SeenPRs): boolean {
-  return prs.some((pr) => {
-    const seenAt = seen[pr.id.toString()]
-    return !seenAt || parseEpochMillis(pr.updated_at) > parseEpochMillis(seenAt)
-  })
+  return prs.some((pr) => isUnseen(pr, seen))
 }
 
 export const PRSynchronizationLive = Layer.effect(
@@ -132,7 +133,7 @@ export const PRSynchronizationLive = Layer.effect(
         seen,
         sync,
         attention: {
-          total: visible.created.length + visible.assigned.length,
+          total: visible.authored.length + visible.reviewing.length,
           hasUnseen: hasUnseen(visiblePRs, seen),
         },
       })

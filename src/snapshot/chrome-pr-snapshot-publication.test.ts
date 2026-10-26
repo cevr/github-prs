@@ -3,8 +3,9 @@ import { describe, expect, it } from "effect-bun-test"
 import type { PRData } from "@/types"
 import { ChromePRSnapshotPublicationLive } from "./chrome-pr-snapshot-publication"
 import { PRSnapshotPublication } from "./pr-snapshot-publication"
+import { pr } from "@/testing/pr-fixture"
 
-const emptyPRs: PRData = { created: [], assigned: [] }
+const emptyPRs: PRData = { authored: [], reviewing: [] }
 
 function resolved<A>(value: A): Promise<A> {
   return Effect.runPromise(Effect.succeed(value))
@@ -30,7 +31,7 @@ describe("Chrome PR Snapshot publication", () => {
           local: {
             get: () =>
               resolved({
-                previousPRs: emptyPRs,
+                pullRequests: emptyPRs,
                 seenPRs: { "1": "2026-07-16T12:00:00.000Z" },
                 syncState: { status: "idle", lastSyncedAt: "2026-07-16T13:00:00.000Z" },
               }),
@@ -52,28 +53,18 @@ describe("Chrome PR Snapshot publication", () => {
 
   it.scopedLive("recovers snapshots written with explicit undefined optional metadata", () =>
     Effect.gen(function* () {
-      const previousPRs = {
-        created: [
-          {
-            id: 1,
-            number: 42,
-            title: "Keep cached pull requests readable",
-            html_url: "https://github.com/acme/tracker/pull/42",
-            repository_url: "https://api.github.com/repos/acme/tracker",
-            updated_at: "2026-07-16T12:00:00.000Z",
-            user: { login: "cevr" },
-            isApproved: true,
-            lastUpdatedBy: undefined,
-          },
+      const pullRequests: PRData = {
+        authored: [
+          pr({ id: 42, title: "Keep cached pull requests readable", lastActivity: undefined }),
         ],
-        assigned: [],
+        reviewing: [],
       }
       yield* installChrome({
         storage: {
           local: {
             get: () =>
               resolved({
-                previousPRs,
+                pullRequests,
                 seenPRs: {},
                 syncState: {
                   status: "error",
@@ -89,7 +80,7 @@ describe("Chrome PR Snapshot publication", () => {
         publication.read(),
       ).pipe(Effect.provide(ChromePRSnapshotPublicationLive))
 
-      expect(snapshot.prs).toEqual(previousPRs)
+      expect(snapshot.prs).toEqual(pullRequests)
       expect(snapshot.sync).toEqual({
         status: "error",
         lastSyncedAt: undefined,
@@ -102,12 +93,17 @@ describe("Chrome PR Snapshot publication", () => {
     Effect.gen(function* () {
       const events: string[] = []
       let stored: Record<string, unknown> | undefined
+      const removed: string[] = []
       yield* installChrome({
         storage: {
           local: {
             set: (value: Record<string, unknown>) => {
               stored = value
               events.push("stored")
+              return resolved(undefined)
+            },
+            remove: (keys: string[]) => {
+              removed.push(...keys)
               return resolved(undefined)
             },
           },
@@ -138,7 +134,8 @@ describe("Chrome PR Snapshot publication", () => {
         }),
       ).pipe(Effect.provide(ChromePRSnapshotPublicationLive))
 
-      expect(stored).toEqual({ previousPRs: emptyPRs, seenPRs: {}, syncState: { status: "idle" } })
+      expect(stored).toEqual({ pullRequests: emptyPRs, seenPRs: {}, syncState: { status: "idle" } })
+      expect(removed).toEqual(["previousPRs"])
       expect(events.slice(0, 2)).toEqual(["stored", "signaled"])
       expect(events).toContain("badge-text")
     }),
@@ -176,7 +173,7 @@ describe("Chrome PR Snapshot publication", () => {
         Effect.provide(ChromePRSnapshotPublicationLive),
       )
 
-      expect(removals).toEqual([["previousPRs", "seenPRs", "syncState"]])
+      expect(removals).toEqual([["pullRequests", "seenPRs", "syncState", "previousPRs"]])
       expect(messages).toEqual(["setupNeeded"])
       expect(badges).toEqual([""])
     }),

@@ -1,12 +1,16 @@
 import { Effect, Layer, Schema } from "effect"
-import { parseEpochMillis } from "@/lib/time"
+import { isUnseen } from "@/lib/seen"
 import { publishRuntimeEvent } from "@/runtime/runtime-messaging"
 import { PRData, SeenPRs, SyncState } from "@/types"
 import { PRSnapshotPublication, PRSnapshotPublicationError } from "./pr-snapshot-publication"
 import type { PRSnapshotChange } from "./pr-snapshot-publication"
 
+// Pull requests live under `pullRequests`. Builds before 1.2 kept another shape under `previousPRs`;
+// it is never read, and the next snapshot or a disconnect deletes it.
+const LEGACY_KEYS = ["previousPRs"]
+
 const StoredPublicationState = Schema.Struct({
-  previousPRs: Schema.optionalKey(PRData),
+  pullRequests: Schema.optionalKey(PRData),
   seenPRs: Schema.optionalKey(SeenPRs),
   syncState: Schema.optionalKey(SyncState),
 })
@@ -25,7 +29,7 @@ function storageOperation<A>(operation: string, evaluate: () => Promise<A>) {
 
 const read = Effect.fn("PRSnapshotPublication.read")(function* () {
   const stored = yield* storageOperation("read pull-request state", () =>
-    chrome.storage.local.get(["previousPRs", "seenPRs", "syncState"]),
+    chrome.storage.local.get(["pullRequests", "seenPRs", "syncState"]),
   )
   const decoded = yield* Schema.decodeUnknownEffect(StoredPublicationState)(stored).pipe(
     Effect.mapError(
@@ -37,7 +41,7 @@ const read = Effect.fn("PRSnapshotPublication.read")(function* () {
         }),
     ),
   )
-  return { prs: decoded.previousPRs, seen: decoded.seenPRs ?? {}, sync: decoded.syncState }
+  return { prs: decoded.pullRequests, seen: decoded.seenPRs ?? {}, sync: decoded.syncState }
 })
 
 function badgeBackgroundColor(hasUnseen: boolean): string {
@@ -78,14 +82,11 @@ const recordSeen = Effect.fn("PRSnapshotPublication.recordSeen")(function* (
 
   const prs = stored.prs
   if (!prs) return
-  const unique = new Map(prs.created.map((pr) => [pr.id, pr]))
-  for (const pr of prs.assigned) unique.set(pr.id, pr)
-  const hasUnseen = Array.from(unique.values()).some((pr) => {
-    const recordedAt = seen[pr.id.toString()]
-    return !recordedAt || parseEpochMillis(pr.updated_at) > parseEpochMillis(recordedAt)
-  })
+  const unique = new Map(prs.authored.map((pr) => [pr.id, pr]))
+  for (const pr of prs.reviewing) unique.set(pr.id, pr)
+  const hasUnseen = Array.from(unique.values()).some((pr) => isUnseen(pr, seen))
   yield* updateBadge({
-    total: prs.created.length + prs.assigned.length,
+    total: prs.authored.length + prs.reviewing.length,
     hasUnseen,
   }).pipe(
     Effect.catchCause((cause) =>
@@ -108,10 +109,13 @@ const publish = Effect.fn("PRSnapshotPublication.publish")(function* (change: PR
 
   yield* storageOperation("publish the pull-request snapshot", () =>
     chrome.storage.local.set({
-      previousPRs: change.prs,
+      pullRequests: change.prs,
       seenPRs: change.seen,
       syncState: change.sync,
     }),
+  )
+  yield* storageOperation("remove superseded pull-request state", () =>
+    chrome.storage.local.remove(LEGACY_KEYS),
   )
   yield* publishRuntimeEvent({ action: "prSnapshotChanged" })
   yield* updateBadge(change.attention).pipe(
@@ -121,7 +125,7 @@ const publish = Effect.fn("PRSnapshotPublication.publish")(function* (change: PR
 
 const clear = Effect.fn("PRSnapshotPublication.clear")(function* () {
   yield* storageOperation("clear the pull-request snapshot", () =>
-    chrome.storage.local.remove(["previousPRs", "seenPRs", "syncState"]),
+    chrome.storage.local.remove(["pullRequests", "seenPRs", "syncState", ...LEGACY_KEYS]),
   )
   yield* publishRuntimeEvent({ action: "setupNeeded" })
   yield* updateBadge({ total: 0, hasUnseen: false }).pipe(

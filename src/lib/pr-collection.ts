@@ -1,66 +1,71 @@
 import type { PR, SeenPRs } from "@/types"
+import { authoredStage, reviewingStage, STAGES } from "./pr-status"
+import type { Perspective, Stage } from "./pr-status"
+import { isUnseen } from "./seen"
 import { parseEpochMillis } from "./time"
 
 export interface PRCollectionItem {
-  pr: PR
-  unseen: boolean
-  newComment: boolean
+  readonly pr: PR
+  readonly stage: Stage
+  readonly unseen: boolean
+  readonly newComment: boolean
 }
 
-export interface PRCollectionGroup {
-  repo: string
-  items: PRCollectionItem[]
+/** The pull requests at one stage, newest activity first. */
+export interface PRCollectionSection {
+  readonly stage: Stage
+  readonly items: readonly PRCollectionItem[]
 }
 
 export interface PRCollection {
-  groups: PRCollectionGroup[]
-  totalCount: number
-  unseenCount: number
+  /** Only stages that hold pull requests, in their perspective's order. */
+  readonly sections: readonly PRCollectionSection[]
+  readonly totalCount: number
+  readonly unseenCount: number
 }
 
-function getRepoName(repositoryUrl: string): string {
-  const parts = repositoryUrl.split("/")
-  if (parts.length >= 2) {
-    return parts[parts.length - 2] + "/" + parts[parts.length - 1]
-  }
-  return "unknown/repo"
+export interface PRCollectionLens {
+  readonly perspective: Perspective
+  /** The user's GitHub login. */
+  readonly viewer: string
 }
 
-function isUnseen(pr: PR, seen: SeenPRs): boolean {
+function hasNewComment(pr: PR, seen: Readonly<SeenPRs>): boolean {
+  if (!pr.lastComment) return false
   const seenAt = seen[pr.id.toString()]
-  return !seenAt || parseEpochMillis(pr.updated_at) > parseEpochMillis(seenAt)
+  return !seenAt || parseEpochMillis(pr.lastComment.at) > parseEpochMillis(seenAt)
 }
 
-export function createPRCollection(prs: readonly PR[], seen: Readonly<SeenPRs>): PRCollection {
-  const byRepo = new Map<string, PRCollectionItem[]>()
+export function createPRCollection(
+  prs: readonly PR[],
+  seen: Readonly<SeenPRs>,
+  lens: PRCollectionLens,
+): PRCollection {
+  const byStage = new Map<Stage, PRCollectionItem[]>()
   let unseenCount = 0
 
   for (const pr of prs) {
+    let stage: Stage = authoredStage(pr)
+    if (lens.perspective === "reviewing") stage = reviewingStage(pr, lens.viewer)
     const unseen = isUnseen(pr, seen)
     if (unseen) unseenCount++
-    const seenAt = seen[pr.id.toString()]
-    const newComment = Boolean(
-      pr.lastCommentedAt &&
-      (!seenAt || parseEpochMillis(pr.lastCommentedAt) > parseEpochMillis(seenAt)),
-    )
-
-    const repo = getRepoName(pr.repository_url)
-    const item = { pr, unseen, newComment }
-    const items = byRepo.get(repo)
+    const item = { pr, stage, unseen, newComment: hasNewComment(pr, seen) }
+    const items = byStage.get(stage)
     if (items) items.push(item)
-    else byRepo.set(repo, [item])
+    else byStage.set(stage, [item])
   }
 
-  const groups = Array.from(byRepo, ([repo, items]) => ({
-    repo,
-    items: items
-      .slice()
-      .sort((a, b) => parseEpochMillis(b.pr.updated_at) - parseEpochMillis(a.pr.updated_at)),
-  })).sort((a, b) => {
-    const newestA = a.items.at(0)?.pr.updated_at ?? ""
-    const newestB = b.items.at(0)?.pr.updated_at ?? ""
-    return parseEpochMillis(newestB) - parseEpochMillis(newestA)
-  })
+  const sections: PRCollectionSection[] = []
+  for (const stage of STAGES[lens.perspective]) {
+    const items = byStage.get(stage)
+    if (!items) continue
+    sections.push({
+      stage,
+      items: items.toSorted(
+        (a, b) => parseEpochMillis(b.pr.updatedAt) - parseEpochMillis(a.pr.updatedAt),
+      ),
+    })
+  }
 
-  return { groups, totalCount: prs.length, unseenCount }
+  return { sections, totalCount: prs.length, unseenCount }
 }

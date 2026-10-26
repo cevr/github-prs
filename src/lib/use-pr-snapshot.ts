@@ -12,6 +12,8 @@ import type { PRData, SeenPRs, SyncState } from "@/types"
 export interface CachedPRSnapshot {
   readonly prs: PRData
   readonly seen: SeenPRs
+  /** The user's GitHub login, whose side of each pull request decides its order. */
+  readonly viewer: string
 }
 
 export type PRSnapshotState =
@@ -92,7 +94,7 @@ export function usePRSnapshot(): PRSnapshotModel {
 
       return {
         kind: "available",
-        snapshot: { prs, seen: local.seen },
+        snapshot: { prs, seen: local.seen, viewer: settings.username },
         sync,
       }
     },
@@ -145,7 +147,7 @@ export function usePRSnapshot(): PRSnapshotModel {
       seen[prId] = nowIso()
       return {
         kind: "available",
-        snapshot: { prs: current.snapshot.prs, seen },
+        snapshot: { prs: current.snapshot.prs, seen, viewer: current.snapshot.viewer },
         sync: current.sync,
       }
     })

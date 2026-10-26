@@ -1,12 +1,11 @@
 import { createSignal, For } from "solid-js"
-import type { PRCollectionGroup } from "@/lib/pr-collection"
+import type { PRCollectionItem } from "@/lib/pr-collection"
 import { ChevronIcon } from "./icons"
 import { PRRow } from "./pr-row"
 
 interface RepoGroupProps {
-  group: PRCollectionGroup
+  group: { repo: string; items: readonly PRCollectionItem[] }
   onMarkSeen: (prId: number) => void
-  showApproved?: boolean
 }
 
 export function RepoGroup(props: RepoGroupProps) {
@@ -35,9 +34,7 @@ export function RepoGroup(props: RepoGroupProps) {
       </button>
       <div class={itemsClass()}>
         <For each={props.group.items}>
-          {(item) => (
-            <PRRow item={item} onMarkSeen={props.onMarkSeen} showApproved={props.showApproved} />
-          )}
+          {(item) => <PRRow item={item} onMarkSeen={props.onMarkSeen} />}
         </For>
       </div>
     </section>

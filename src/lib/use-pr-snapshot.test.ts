@@ -4,7 +4,7 @@ import { createRoot, flush } from "@solidjs/signals"
 import type { PRData, SyncState } from "@/types"
 import { usePRSnapshot } from "./use-pr-snapshot"
 
-const emptyPRs: PRData = { created: [], assigned: [] }
+const emptyPRs: PRData = { authored: [], reviewing: [] }
 
 interface MockState {
   sync: Record<string, unknown>
@@ -96,7 +96,7 @@ describe("PR snapshot", () => {
         sync: { username: "cevr" },
         local: {
           githubToken: "token",
-          previousPRs: emptyPRs,
+          pullRequests: emptyPRs,
           seenPRs: {},
           syncState: { status: "idle", lastSyncedAt: "2026-07-16T12:00:00.000Z" },
         },
@@ -154,7 +154,7 @@ describe("PR snapshot", () => {
         sync: { username: "cevr" },
         local: {
           githubToken: "token",
-          previousPRs: emptyPRs,
+          pullRequests: emptyPRs,
           seenPRs: {},
           syncState: { status: "syncing", lastSyncedAt: "2026-07-16T12:00:00.000Z" },
         },

@@ -1,8 +1,8 @@
 import { Context, Effect, Layer, Schema } from "effect"
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
 import type { TrackerSettings } from "@/settings/tracker-settings"
-import { PRData } from "@/types"
-import type { PR } from "@/types"
+import { PRData, sameLogin } from "@/types"
+import type { Activity, Person, PR, Review, ReviewVerdict } from "@/types"
 
 export class GitHubAuthenticationError extends Schema.TaggedErrorClass<GitHubAuthenticationError>()(
   "GitHubAuthenticationError",
@@ -16,28 +16,233 @@ export class GitHubApiError extends Schema.TaggedErrorClass<GitHubApiError>()("G
   cause: Schema.optional(Schema.Defect()),
 }) {}
 
-const TimelineEvent = Schema.Struct({
-  event: Schema.String,
-  state: Schema.optionalKey(Schema.String),
-  created_at: Schema.optionalKey(Schema.String),
-  submitted_at: Schema.optionalKey(Schema.String),
-  actor: Schema.optionalKey(Schema.NullOr(Schema.Struct({ login: Schema.String }))),
-  user: Schema.optionalKey(Schema.NullOr(Schema.Struct({ login: Schema.String }))),
+const GRAPHQL_URL = "https://api.github.com/graphql"
+const SEARCH_PAGE_SIZE = 100
+
+// One search returns every open pull request with what its review status needs, instead of a search
+// followed by a timeline request per pull request. Nested lists keep their latest entries.
+const SEARCH_QUERY = `
+query PullRequests($query: String!, $after: String) {
+  search(query: $query, type: ISSUE, first: ${SEARCH_PAGE_SIZE}, after: $after) {
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      ... on PullRequest {
+        databaseId number title url updatedAt isDraft reviewDecision mergeable
+        author { __typename login avatarUrl(size: 48) }
+        repository { nameWithOwner }
+        latestOpinionatedReviews(first: 30) { nodes { ...Verdict } }
+        latestReviews(first: 30) { nodes { ...Verdict } }
+        reviewRequests(first: 20) {
+          nodes { requestedReviewer { __typename ... on User { login avatarUrl(size: 48) } } }
+        }
+        comments(last: 5) { nodes { author { __typename login } createdAt } }
+        timelineItems(last: 5, itemTypes: [PULL_REQUEST_REVIEW, PULL_REQUEST_COMMIT, ISSUE_COMMENT, HEAD_REF_FORCE_PUSHED_EVENT]) {
+          nodes {
+            __typename
+            ... on PullRequestReview { author { __typename login } submittedAt }
+            ... on IssueComment { author { __typename login } createdAt }
+            ... on PullRequestCommit { commit { committedDate author { user { login } } } }
+            ... on HeadRefForcePushedEvent { actor { __typename login } createdAt }
+          }
+        }
+      }
+    }
+  }
+}
+fragment Verdict on PullRequestReview { state submittedAt author { __typename login avatarUrl(size: 48) } }`
+
+const Actor = Schema.NullOr(
+  Schema.Struct({
+    __typename: Schema.String,
+    login: Schema.String,
+    avatarUrl: Schema.optionalKey(Schema.String),
+  }),
+)
+type Actor = typeof Actor.Type
+
+/** A GraphQL connection: GitHub may null the list, or an entry the token cannot read. */
+const connection = <S extends Schema.Top>(node: S) =>
+  Schema.NullOr(Schema.Struct({ nodes: Schema.NullOr(Schema.Array(Schema.NullOr(node))) }))
+
+function nodesOf<A>(list: { readonly nodes: ReadonlyArray<A | null> | null } | null): A[] {
+  return (list?.nodes ?? []).filter((node): node is A => node !== null)
+}
+
+const ReviewNode = Schema.Struct({
+  state: Schema.String,
+  submittedAt: Schema.NullOr(Schema.String),
+  author: Actor,
 })
 
-const GitHubSearchItem = Schema.Struct({
-  id: Schema.Number,
+const TimelineNode = Schema.Struct({
+  __typename: Schema.String,
+  author: Schema.optionalKey(Actor),
+  actor: Schema.optionalKey(Actor),
+  submittedAt: Schema.optionalKey(Schema.NullOr(Schema.String)),
+  createdAt: Schema.optionalKey(Schema.String),
+  commit: Schema.optionalKey(
+    Schema.Struct({
+      committedDate: Schema.String,
+      author: Schema.NullOr(
+        Schema.Struct({ user: Schema.NullOr(Schema.Struct({ login: Schema.String })) }),
+      ),
+    }),
+  ),
+})
+
+const PullRequestNode = Schema.Struct({
+  databaseId: Schema.Number,
   number: Schema.Number,
   title: Schema.String,
-  html_url: Schema.String,
-  repository_url: Schema.String,
-  updated_at: Schema.String,
-  user: Schema.Struct({ login: Schema.String }),
+  url: Schema.String,
+  updatedAt: Schema.String,
+  isDraft: Schema.Boolean,
+  reviewDecision: Schema.NullOr(
+    Schema.Literals(["APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED"]),
+  ),
+  mergeable: Schema.String,
+  author: Actor,
+  repository: Schema.Struct({ nameWithOwner: Schema.String }),
+  latestOpinionatedReviews: connection(ReviewNode),
+  latestReviews: connection(ReviewNode),
+  reviewRequests: connection(
+    Schema.Struct({
+      requestedReviewer: Schema.NullOr(
+        Schema.Struct({
+          __typename: Schema.String,
+          login: Schema.optionalKey(Schema.String),
+          avatarUrl: Schema.optionalKey(Schema.String),
+        }),
+      ),
+    }),
+  ),
+  comments: connection(Schema.Struct({ author: Actor, createdAt: Schema.String })),
+  timelineItems: connection(TimelineNode),
+})
+type PullRequestNode = typeof PullRequestNode.Type
+
+const SearchResponse = Schema.Struct({
+  data: Schema.optionalKey(
+    Schema.NullOr(
+      Schema.Struct({
+        search: Schema.Struct({
+          pageInfo: Schema.Struct({
+            hasNextPage: Schema.Boolean,
+            endCursor: Schema.NullOr(Schema.String),
+          }),
+          nodes: Schema.Array(Schema.NullOr(PullRequestNode)),
+        }),
+      }),
+    ),
+  ),
+  errors: Schema.optionalKey(Schema.Array(Schema.Struct({ message: Schema.String }))),
 })
 
-const GitHubSearchResponse = Schema.Struct({ items: Schema.Array(GitHubSearchItem) })
+type SearchPage = NonNullable<(typeof SearchResponse.Type)["data"]>["search"]
 
-const SEARCH_PAGE_SIZE = 100
+const VERDICTS: Readonly<Record<string, ReviewVerdict>> = {
+  APPROVED: "approved",
+  CHANGES_REQUESTED: "changes_requested",
+  COMMENTED: "commented",
+}
+
+const DECISIONS = {
+  APPROVED: "approved",
+  CHANGES_REQUESTED: "changes_requested",
+  REVIEW_REQUIRED: "review_required",
+} as const
+
+function decisionOf(node: PullRequestNode): PR["decision"] {
+  if (node.reviewDecision === null) return null
+  return DECISIONS[node.reviewDecision]
+}
+
+/** A person rather than an app: bots review, comment and push constantly and decide nothing. */
+function person(actor: Actor | undefined): actor is NonNullable<Actor> {
+  return actor !== null && actor !== undefined && actor.__typename !== "Bot"
+}
+
+function avatarOf(login: string, avatarUrl: string | undefined): string {
+  return avatarUrl ?? `https://avatars.githubusercontent.com/${encodeURIComponent(login)}?s=48`
+}
+
+function reviewsOf(node: PullRequestNode, author: string): Review[] {
+  const byReviewer = new Map<string, Review>()
+  // A reviewer's latest review may be a comment after an approval; the approval still stands, so
+  // opinionated reviews are read last and win.
+  for (const review of [
+    ...nodesOf(node.latestReviews),
+    ...nodesOf(node.latestOpinionatedReviews),
+  ]) {
+    const verdict = VERDICTS[review.state]
+    if (!verdict || !review.submittedAt || !person(review.author)) continue
+    // The author's replies to review threads are reviews too.
+    if (sameLogin(review.author.login, author)) continue
+    byReviewer.set(review.author.login.toLowerCase(), {
+      reviewer: {
+        login: review.author.login,
+        avatarUrl: avatarOf(review.author.login, review.author.avatarUrl),
+      },
+      verdict,
+      submittedAt: review.submittedAt,
+    })
+  }
+  return Array.from(byReviewer.values()).sort((a, b) => a.submittedAt.localeCompare(b.submittedAt))
+}
+
+function requestedReviewersOf(node: PullRequestNode): Person[] {
+  const requested: Person[] = []
+  for (const { requestedReviewer } of nodesOf(node.reviewRequests)) {
+    if (requestedReviewer?.__typename !== "User" || !requestedReviewer.login) continue
+    requested.push({
+      login: requestedReviewer.login,
+      avatarUrl: avatarOf(requestedReviewer.login, requestedReviewer.avatarUrl),
+    })
+  }
+  return requested
+}
+
+function lastActivityOf(node: PullRequestNode): Activity | undefined {
+  for (const item of nodesOf(node.timelineItems).reverse()) {
+    if (item.commit) {
+      const login = item.commit.author?.user?.login
+      if (login) return { by: login, at: item.commit.committedDate }
+      continue
+    }
+    const actor = item.author ?? item.actor
+    const at = item.submittedAt ?? item.createdAt
+    if (person(actor) && at) return { by: actor.login, at }
+  }
+  return undefined
+}
+
+function lastCommentOf(node: PullRequestNode): Activity | undefined {
+  const comment = nodesOf(node.comments)
+    .reverse()
+    .find((entry) => person(entry.author))
+  if (!comment?.author) return undefined
+  return { by: comment.author.login, at: comment.createdAt }
+}
+
+export function toPR(node: PullRequestNode): PR {
+  const author = node.author?.login ?? "ghost"
+  return {
+    id: node.databaseId,
+    number: node.number,
+    title: node.title,
+    url: node.url,
+    repository: node.repository.nameWithOwner,
+    author: { login: author, avatarUrl: avatarOf(author, node.author?.avatarUrl) },
+    updatedAt: node.updatedAt,
+    draft: node.isDraft,
+    decision: decisionOf(node),
+    conflicting: node.mergeable === "CONFLICTING",
+    reviews: reviewsOf(node, author),
+    requestedReviewers: requestedReviewersOf(node),
+    lastActivity: lastActivityOf(node),
+    lastComment: lastCommentOf(node),
+  }
+}
 
 function deduplicate(collections: readonly (readonly PR[])[]): readonly PR[] {
   const unique = new Map<number, PR>()
@@ -56,14 +261,6 @@ function requestError(operation: string, cause: unknown, status?: number) {
   })
 }
 
-function requestWithToken(token: string, url: string) {
-  return HttpClientRequest.get(url).pipe(
-    HttpClientRequest.setHeader("authorization", `Bearer ${token}`),
-    HttpClientRequest.setHeader("accept", "application/vnd.github+json"),
-    HttpClientRequest.setHeader("x-github-api-version", "2022-11-28"),
-  )
-}
-
 export class GitHubPRSource extends Context.Service<
   GitHubPRSource,
   {
@@ -78,156 +275,66 @@ export const GitHubPRSourceLive = Layer.effect(
   Effect.gen(function* () {
     const client = yield* HttpClient.HttpClient
 
-    const execute = Effect.fn("GitHubPRSource.execute")(function* (
+    const searchPage = Effect.fn("GitHubPRSource.searchPage")(function* (
       token: string,
-      operation: string,
-      url: string,
+      query: string,
+      after: string | null,
     ) {
+      const request = HttpClientRequest.post(GRAPHQL_URL).pipe(
+        HttpClientRequest.setHeader("authorization", `Bearer ${token}`),
+        HttpClientRequest.setHeader("accept", "application/vnd.github+json"),
+        HttpClientRequest.bodyJsonUnsafe({ query: SEARCH_QUERY, variables: { query, after } }),
+      )
       const response = yield* client
-        .execute(requestWithToken(token, url))
-        .pipe(Effect.mapError((cause) => requestError(operation, cause)))
+        .execute(request)
+        .pipe(Effect.mapError((cause) => requestError("search pull requests", cause)))
       if (response.status === 401) {
         return yield* new GitHubAuthenticationError({
           message: "GitHub rejected the saved account credentials.",
         })
       }
       if (response.status < 200 || response.status >= 300) {
-        return yield* requestError(operation, undefined, response.status)
+        return yield* requestError("search pull requests", undefined, response.status)
       }
-      return response
-    })
-
-    const fetchTimeline = Effect.fn("GitHubPRSource.fetchTimeline")(function* (
-      token: string,
-      pr: PR,
-    ) {
-      const repository = pr.repository_url.replace("https://api.github.com/repos/", "")
-      const timeline = yield* execute(
-        token,
-        "load a pull request timeline",
-        `https://api.github.com/repos/${repository}/issues/${pr.number}/timeline?per_page=${SEARCH_PAGE_SIZE}`,
-      ).pipe(
-        Effect.flatMap((response) =>
-          HttpClientResponse.schemaBodyJson(Schema.Array(TimelineEvent))(response).pipe(
-            Effect.mapError((cause) => requestError("decode a pull request timeline", cause)),
-          ),
-        ),
-        Effect.catchTag("GitHubApiError", (error) =>
-          Effect.logWarning(error.message).pipe(Effect.as([])),
-        ),
+      const body = yield* HttpClientResponse.schemaBodyJson(SearchResponse)(response).pipe(
+        Effect.mapError((cause) => requestError("decode pull request search results", cause)),
       )
-      let lastUpdatedBy: string | undefined
-      let lastCommenter: string | undefined
-      let lastCommentedAt: string | undefined
-      const reviewerStates = new Map<string, string>()
-
-      for (let index = timeline.length - 1; index >= 0; index--) {
-        const event = timeline[index]
-        if (!event) continue
-        const login = event.actor?.login ?? event.user?.login
-        if (
-          !lastUpdatedBy &&
-          login &&
-          ["reviewed", "committed", "commented", "synchronized"].includes(event.event)
-        ) {
-          lastUpdatedBy = login
-        }
-        if (event.event === "commented" && !lastCommenter && login) {
-          lastCommenter = login
-          lastCommentedAt = event.created_at
-        }
-        if (event.event === "reviewed" && login && !reviewerStates.has(login)) {
-          reviewerStates.set(login, event.state ?? "commented")
-        }
+      const message = body.errors?.map((error) => error.message).join(" ")
+      if (!body.data) {
+        return yield* new GitHubApiError({
+          operation: "search pull requests",
+          message: message ?? "GitHub returned no pull requests.",
+        })
       }
-
-      const states = Array.from(reviewerStates.values())
-      let reviewStatus: PR["reviewStatus"]
-      if (states.includes("changes_requested")) reviewStatus = "changes_requested"
-      else if (states.includes("approved")) reviewStatus = "approved"
-      else if (states.length > 0) reviewStatus = "reviewed"
-
-      return {
-        isApproved: reviewStatus === "approved",
-        reviewStatus,
-        lastUpdatedBy,
-        lastCommenter,
-        lastCommentedAt,
-      }
+      // A token without access to part of a pull request (a field, a repository) gets the rest.
+      if (message) yield* Effect.logWarning(`GitHub left out part of a search: ${message}`)
+      return body.data.search
     })
 
-    const search = Effect.fn("GitHubPRSource.search")(function* (
-      token: string,
-      query: string,
-      includeApproval: boolean,
-    ) {
-      const items: Array<Schema.Schema.Type<typeof GitHubSearchItem>> = []
-      let page = 1
-
+    const search = Effect.fn("GitHubPRSource.search")(function* (token: string, query: string) {
+      const prs: PR[] = []
+      let after: string | null = null
       while (true) {
-        const response = yield* execute(
-          token,
-          "search pull requests",
-          `https://api.github.com/search/issues?q=${query}&per_page=${SEARCH_PAGE_SIZE}&page=${page}`,
-        ).pipe(
-          Effect.flatMap((httpResponse) =>
-            HttpClientResponse.schemaBodyJson(GitHubSearchResponse)(httpResponse).pipe(
-              Effect.mapError((cause) => requestError("decode pull request search results", cause)),
-            ),
-          ),
-        )
-        items.push(...response.items)
-        if (response.items.length < SEARCH_PAGE_SIZE) break
-        page++
+        const page: SearchPage = yield* searchPage(token, query, after)
+        for (const node of page.nodes) if (node) prs.push(toPR(node))
+        if (!page.pageInfo.hasNextPage || !page.pageInfo.endCursor) return prs
+        after = page.pageInfo.endCursor
       }
-
-      return yield* Effect.forEach(
-        items,
-        (item) =>
-          Effect.map(
-            fetchTimeline(token, {
-              id: item.id,
-              number: item.number,
-              title: item.title,
-              html_url: item.html_url,
-              repository_url: item.repository_url,
-              updated_at: item.updated_at,
-              user: { login: item.user.login },
-            }),
-            (timeline): PR => {
-              let isApproved: boolean | undefined
-              if (includeApproval) isApproved = timeline.isApproved
-              return {
-                id: item.id,
-                number: item.number,
-                title: item.title,
-                html_url: item.html_url,
-                repository_url: item.repository_url,
-                updated_at: item.updated_at,
-                user: { login: item.user.login },
-                isApproved,
-                reviewStatus: timeline.reviewStatus,
-                lastUpdatedBy: timeline.lastUpdatedBy,
-                lastCommenter: timeline.lastCommenter,
-                lastCommentedAt: timeline.lastCommentedAt,
-              }
-            },
-          ),
-        { concurrency: "unbounded" },
-      )
     })
 
     const fetch = Effect.fn("GitHubPRSource.fetch")(function* (settings: TrackerSettings) {
-      const username = encodeURIComponent(settings.username)
-      const [created, assigned, reviewRequested] = yield* Effect.all(
+      const user = settings.username
+      const open = "is:pr is:open"
+      // A review list never holds the user's own pull requests, even ones assigned to the user.
+      const [authored, requested, assigned] = yield* Effect.all(
         [
-          search(settings.token, `is:pr+author:${username}+is:open`, true),
-          search(settings.token, `is:pr+is:open+assignee:${username}`, false),
-          search(settings.token, `is:pr+is:open+review-requested:${username}`, false),
+          search(settings.token, `${open} author:${user}`),
+          search(settings.token, `${open} -author:${user} review-requested:${user}`),
+          search(settings.token, `${open} -author:${user} assignee:${user}`),
         ],
         { concurrency: "unbounded" },
       )
-      return PRData.make({ created, assigned: deduplicate([assigned, reviewRequested]) })
+      return PRData.make({ authored, reviewing: deduplicate([requested, assigned]) })
     })
 
     return GitHubPRSource.of({ fetch })
