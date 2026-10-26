@@ -1,5 +1,17 @@
 # github-prs
 
+## 1.3.0
+
+### Minor Changes
+
+- [`41f6ae3`](https://github.com/cevr/github-prs/commit/41f6ae36cb65991f00b6f57c7a0605de56156b62) Thanks [@cevr](https://github.com/cevr)! - Show stacked pull requests together. A pull request whose base branch is another's branch in the same repository joins its stack. Each stack is its own section, ahead of the status sections. Its heading shows the title of the stack's first pull request, the repository, how many pull requests it holds, the branch it merges into, and how many are at each status. Its members follow, top first, on a line through each one's status. Click the heading to fold the stack; the panel remembers it. The stack with the most urgent member comes first.
+
+### Patch Changes
+
+- [`c01276c`](https://github.com/cevr/github-prs/commit/c01276c1704eb179f44280ec6ad9b3c1fa85bb7f) Thanks [@cevr](https://github.com/cevr)! - Refresh pull requests each time the side panel opens. The saved list shows at once while the refresh runs.
+
+- [`dcce664`](https://github.com/cevr/github-prs/commit/dcce66472e6f1688f9ddd3da42075a2814fa4d97) Thanks [@cevr](https://github.com/cevr)! - Refresh pull requests as soon as the extension is installed or updated, so new details such as stacks appear without waiting for the next scheduled refresh.
+
 ## 1.2.0
 
 ### Minor Changes
