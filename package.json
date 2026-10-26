@@ -9,7 +9,7 @@
     "build": "vite build",
     "package:extension": "bun run build && bun scripts/package-extension.ts",
     "validate:marketplace": "bun scripts/validate-marketplace.ts",
-    "version": "changeset version && bun scripts/sync-manifest-version.ts",
+    "version": "changeset version && bun scripts/sync-manifest-version.ts && oxfmt manifest.json package.json CHANGELOG.md",
     "release": "bun run package:extension && bun run validate:marketplace",
     "test": "bun test",
     "typecheck": "tsgo --noEmit",
