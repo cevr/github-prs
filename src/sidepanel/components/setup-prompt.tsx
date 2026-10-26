@@ -1,18 +1,23 @@
+import { useTracker } from "../tracker"
 import { GitPullRequestIcon } from "./icons"
 
 export function SetupPrompt() {
+  const { actions } = useTracker()
   return (
-    <div class="flex flex-col items-center justify-center py-12 px-6 text-[#8b949e]">
-      <GitPullRequestIcon class="mb-4 opacity-40 w-8 h-8" />
-      <p class="text-sm m-0 mb-2 text-[#e6edf3]">Set up your GitHub token</p>
-      <p class="text-xs m-0 mb-4 text-center">
-        Connect your account to start tracking pull requests.
+    <div class="flex flex-col items-center px-6 py-14 text-center">
+      <span class="mb-3 grid size-10 place-items-center rounded-full bg-surface text-fg-subtle">
+        <GitPullRequestIcon />
+      </span>
+      <p class="m-0 text-sm font-medium text-fg-strong">Connect GitHub</p>
+      <p class="mt-1 mb-4 max-w-60 text-xs leading-5 text-fg-muted">
+        Add your username and a read-only token to track your pull requests.
       </p>
       <button
-        onClick={() => chrome.runtime.openOptionsPage()}
-        class="bg-[#238636] text-white text-sm border-none px-4 py-1.5 rounded-md cursor-pointer hover:bg-[#2ea043] transition-colors"
+        type="button"
+        onClick={() => actions.openSettings()}
+        class="rounded-md border-0 bg-success-emphasis px-3.5 py-1.5 text-sm font-medium text-on-emphasis transition-[filter,scale] duration-150 ease-out hover:brightness-110 enabled:active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
-        Open Settings
+        Open settings
       </button>
     </div>
   )

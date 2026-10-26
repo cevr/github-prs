@@ -11,9 +11,9 @@ import {
 } from "@/settings/tracker-settings"
 
 const inputClass =
-  "w-full box-border rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2.5 text-sm text-[#f0f6fc] outline-none placeholder:text-[#6e7681] hover:border-[#484f58] focus:border-[#58a6ff] focus:ring-1 focus:ring-[#58a6ff]"
+  "w-full box-border rounded-md border border-line bg-canvas px-3 py-2.5 text-sm text-fg-strong outline-none placeholder:text-fg-subtle hover:border-fg-subtle focus:border-accent focus:ring-1 focus:ring-accent"
 
-const labelClass = "mb-1.5 block text-sm font-medium text-[#f0f6fc]"
+const labelClass = "mb-1.5 block text-sm font-medium text-fg-strong"
 
 function statusRole(type: "success" | "error"): "alert" | "status" {
   if (type === "error") return "alert"
@@ -22,8 +22,8 @@ function statusRole(type: "success" | "error"): "alert" | "status" {
 
 function statusClass(type: "success" | "error"): string {
   const base = "rounded-lg border px-4 py-3 text-sm"
-  if (type === "success") return `${base} border-[#2f6f44] bg-[#14261b] text-[#7ee787]`
-  return `${base} border-[#6e3a36] bg-[#2d1618] text-[#ffb4ad]`
+  if (type === "success") return `${base} border-success/40 bg-success/10 text-success`
+  return `${base} border-danger/40 bg-danger/10 text-danger`
 }
 
 function createSettingsCache() {
@@ -112,28 +112,28 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
   return (
     <Loading
       fallback={
-        <main class="min-h-screen bg-[#010409] px-5 py-10">
-          <div class="mx-auto h-96 max-w-3xl animate-pulse rounded-xl bg-[#0d1117]" />
+        <main class="min-h-screen bg-backdrop px-5 py-10">
+          <div class="mx-auto h-96 max-w-3xl animate-pulse rounded-xl bg-canvas" />
         </main>
       }
     >
-      <main class="min-h-screen bg-[#010409] px-5 py-10 sm:px-8 sm:py-14">
+      <main class="min-h-screen bg-backdrop px-5 py-10 sm:px-8 sm:py-14">
         <div class="mx-auto max-w-3xl">
           <header class="mb-8">
-            <p class="m-0 text-sm font-medium text-[#58a6ff]">GitHub PR Tracker</p>
-            <h1 class="mt-1.5 mb-0 text-2xl font-semibold tracking-[-0.02em] text-[#f0f6fc] sm:text-3xl">
+            <p class="m-0 text-sm font-medium text-accent">GitHub PR Tracker</p>
+            <h1 class="mt-1.5 mb-0 text-2xl font-semibold tracking-[-0.02em] text-fg-strong sm:text-3xl">
               Settings
             </h1>
-            <p class="mt-2 mb-0 max-w-2xl text-sm leading-6 text-[#8b949e]">
+            <p class="mt-2 mb-0 max-w-2xl text-sm leading-6 text-fg-muted">
               Connect your account and choose how often to refresh.
             </p>
           </header>
 
           <form onSubmit={handleSubmit} class="space-y-5">
-            <section class="overflow-hidden rounded-xl border border-[#30363d] bg-[#0d1117]">
-              <header class="border-b border-[#30363d] px-5 py-4 sm:px-6">
-                <h2 class="m-0 text-base font-semibold text-[#f0f6fc]">GitHub account</h2>
-                <p class="mt-1 mb-0 text-xs leading-5 text-[#8b949e]">
+            <section class="overflow-hidden rounded-xl border border-line bg-canvas">
+              <header class="border-b border-line px-5 py-4 sm:px-6">
+                <h2 class="m-0 text-base font-semibold text-fg-strong">GitHub account</h2>
+                <p class="mt-1 mb-0 text-xs leading-5 text-fg-muted">
                   Your token stays in local Chrome storage on this device and is sent only to
                   GitHub’s API.
                 </p>
@@ -173,7 +173,7 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
                     <button
                       type="button"
                       onClick={() => setShowToken((visible) => !visible)}
-                      class="absolute inset-y-1 right-1 rounded px-2.5 text-xs font-medium text-[#b1bac4] hover:bg-[#21262d] hover:text-[#f0f6fc] focus-visible:outline-2 focus-visible:outline-[#58a6ff]"
+                      class="absolute inset-y-1 right-1 rounded px-2.5 text-xs font-medium text-fg hover:bg-raised hover:text-fg-strong focus-visible:outline-2 focus-visible:outline-accent"
                       aria-pressed={tokenTogglePressed()}
                     >
                       <Show when={showToken()} fallback="Show">
@@ -181,24 +181,24 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
                       </Show>
                     </button>
                   </div>
-                  <p class="mt-1.5 mb-0 text-xs leading-5 text-[#8b949e]">
+                  <p class="mt-1.5 mb-0 text-xs leading-5 text-fg-muted">
                     Use a fine-grained token limited to the repositories you want to track, with{" "}
-                    <strong class="font-medium text-[#b1bac4]">Pull requests: Read-only</strong>.
+                    <strong class="font-medium text-fg">Pull requests: Read-only</strong>.
                   </p>
                 </div>
 
-                <details class="rounded-lg bg-[#161b22] px-4 py-3 text-sm text-[#b1bac4]">
-                  <summary class="font-medium text-[#f0f6fc] outline-none focus-visible:rounded focus-visible:outline-2 focus-visible:outline-[#58a6ff]">
+                <details class="rounded-lg bg-surface px-4 py-3 text-sm text-fg">
+                  <summary class="font-medium text-fg-strong outline-none focus-visible:rounded focus-visible:outline-2 focus-visible:outline-accent">
                     Create a personal access token
                   </summary>
-                  <ol class="mt-3 mb-1 space-y-2 pl-5 text-xs leading-5 text-[#8b949e]">
+                  <ol class="mt-3 mb-1 space-y-2 pl-5 text-xs leading-5 text-fg-muted">
                     <li>
                       Open{" "}
                       <a
                         href="https://github.com/settings/personal-access-tokens/new"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-[#58a6ff] underline underline-offset-2 hover:text-[#79c0ff]"
+                        class="text-accent underline underline-offset-2 hover:text-accent/80"
                       >
                         GitHub’s fine-grained token form
                       </a>
@@ -223,20 +223,20 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
               </div>
             </section>
 
-            <section class="overflow-hidden rounded-xl border border-[#30363d] bg-[#0d1117]">
-              <header class="border-b border-[#30363d] px-5 py-4 sm:px-6">
-                <h2 class="m-0 text-base font-semibold text-[#f0f6fc]">Refresh behavior</h2>
-                <p class="mt-1 mb-0 text-xs leading-5 text-[#8b949e]">
+            <section class="overflow-hidden rounded-xl border border-line bg-canvas">
+              <header class="border-b border-line px-5 py-4 sm:px-6">
+                <h2 class="m-0 text-base font-semibold text-fg-strong">Refresh behavior</h2>
+                <p class="mt-1 mb-0 text-xs leading-5 text-fg-muted">
                   Saved pull requests remain visible while a background refresh is running or fails.
                 </p>
               </header>
-              <div class="divide-y divide-[#21262d] px-5 sm:px-6">
+              <div class="divide-y divide-line-muted px-5 sm:px-6">
                 <div class="grid gap-3 py-5 sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-center">
                   <div>
                     <label for="interval" class={labelClass}>
                       Check interval
                     </label>
-                    <p class="m-0 text-xs leading-5 text-[#8b949e]">
+                    <p class="m-0 text-xs leading-5 text-fg-muted">
                       Between 5 and 60 minutes. You can always refresh manually.
                     </p>
                   </div>
@@ -250,7 +250,7 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
                       value={settings().checkInterval}
                       class={inputClass + " pr-14 tabular-nums"}
                     />
-                    <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-[#8b949e]">
+                    <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-fg-muted">
                       min
                     </span>
                   </div>
@@ -261,13 +261,13 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
                     type="checkbox"
                     name="hideInactivePRs"
                     checked={settings().hideInactivePRs}
-                    class="mt-0.5 size-4 shrink-0 accent-[#1f6feb]"
+                    class="mt-0.5 size-4 shrink-0 accent-accent-emphasis"
                   />
                   <span>
-                    <span class="block text-sm font-medium text-[#f0f6fc]">
+                    <span class="block text-sm font-medium text-fg-strong">
                       Hide inactive pull requests
                     </span>
-                    <span class="mt-1 block text-xs leading-5 text-[#8b949e]">
+                    <span class="mt-1 block text-xs leading-5 text-fg-muted">
                       Remove pull requests with no activity for more than 30 days from the tracker.
                     </span>
                   </span>
@@ -275,50 +275,50 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
               </div>
             </section>
 
-            <section class="overflow-hidden rounded-xl border border-[#30363d] bg-[#0d1117]">
-              <header class="border-b border-[#30363d] px-5 py-4 sm:px-6">
-                <h2 class="m-0 text-base font-semibold text-[#f0f6fc]">Privacy and local data</h2>
-                <p class="mt-1 mb-0 text-xs leading-5 text-[#8b949e]">
+            <section class="overflow-hidden rounded-xl border border-line bg-canvas">
+              <header class="border-b border-line px-5 py-4 sm:px-6">
+                <h2 class="m-0 text-base font-semibold text-fg-strong">Privacy and local data</h2>
+                <p class="mt-1 mb-0 text-xs leading-5 text-fg-muted">
                   Client-only means the developer operates no server and receives none of your data.
                 </p>
               </header>
-              <div class="divide-y divide-[#21262d] px-5 sm:px-6">
+              <div class="divide-y divide-line-muted px-5 sm:px-6">
                 <dl class="grid gap-4 py-5 text-xs leading-5 sm:grid-cols-2">
                   <div>
-                    <dt class="font-semibold text-[#f0f6fc]">Stored on this device</dt>
-                    <dd class="mt-1 ml-0 text-[#8b949e]">
+                    <dt class="font-semibold text-fg-strong">Stored on this device</dt>
+                    <dd class="mt-1 ml-0 text-fg-muted">
                       GitHub token, cached pull-request metadata, seen state, and last sync result.
                     </dd>
                   </div>
                   <div>
-                    <dt class="font-semibold text-[#f0f6fc]">Synced by Chrome</dt>
-                    <dd class="mt-1 ml-0 text-[#8b949e]">
+                    <dt class="font-semibold text-fg-strong">Synced by Chrome</dt>
+                    <dd class="mt-1 ml-0 text-fg-muted">
                       Username, refresh interval, and inactive-item preference—never the token.
                     </dd>
                   </div>
                   <div>
-                    <dt class="font-semibold text-[#f0f6fc]">Sent over the network</dt>
-                    <dd class="mt-1 ml-0 text-[#8b949e]">
+                    <dt class="font-semibold text-fg-strong">Sent over the network</dt>
+                    <dd class="mt-1 ml-0 text-fg-muted">
                       The token and GitHub username go only to{" "}
-                      <code class="text-[#b1bac4]">https://api.github.com</code> to load pull
-                      requests.
+                      <code class="text-fg">https://api.github.com</code> to load pull requests.
+                      Profile pictures load from GitHub without them.
                     </dd>
                   </div>
                   <div>
-                    <dt class="font-semibold text-[#f0f6fc]">Never included</dt>
-                    <dd class="mt-1 ml-0 text-[#8b949e]">
+                    <dt class="font-semibold text-fg-strong">Never included</dt>
+                    <dd class="mt-1 ml-0 text-fg-muted">
                       No analytics, ads, tracking, developer servers, data brokers, or sale of data.
                     </dd>
                   </div>
                 </dl>
                 <div class="flex flex-wrap items-center justify-between gap-4 py-5">
-                  <p class="m-0 max-w-lg text-xs leading-5 text-[#8b949e]">
+                  <p class="m-0 max-w-lg text-xs leading-5 text-fg-muted">
                     Read the{" "}
                     <a
                       href="https://github.com/cevr/github-prs/blob/main/PRIVACY.md"
                       target="_blank"
                       rel="noopener noreferrer"
-                      class="text-[#58a6ff] underline underline-offset-2 hover:text-[#79c0ff]"
+                      class="text-accent underline underline-offset-2 hover:text-accent/80"
                     >
                       complete privacy policy
                     </a>
@@ -329,7 +329,7 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
                     type="button"
                     onClick={handleDisconnect}
                     disabled={isDisconnecting()}
-                    class="rounded-md border border-[#6e3a36] bg-[#2d1618] px-3.5 py-2 text-sm font-semibold text-[#ffb4ad] hover:bg-[#3b1d20] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff7b72]"
+                    class="rounded-md border border-danger/40 bg-danger/10 px-3.5 py-2 text-sm font-semibold text-danger hover:bg-danger/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger"
                   >
                     <Show when={isDisconnecting()} fallback="Disconnect and clear account data">
                       Clearing…
@@ -351,7 +351,7 @@ function OptionsPage(props: { readonly settingsCache: ReturnType<typeof createSe
               <button
                 type="submit"
                 disabled={settingsStatus().status === "refreshing"}
-                class="rounded-md border border-[#2ea043] bg-[#238636] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#2ea043] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#58a6ff] active:bg-[#1f7a30]"
+                class="rounded-md border border-success-emphasis bg-success-emphasis px-4 py-2.5 text-sm font-semibold text-on-emphasis hover:bg-success-emphasis/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:bg-success-emphasis"
               >
                 <Show when={settingsStatus().status === "refreshing"} fallback="Save settings">
                   Saving…
@@ -371,13 +371,13 @@ export function Options() {
   return (
     <Errored
       fallback={(error, reset) => (
-        <main class="grid min-h-screen place-items-center bg-[#010409] px-6 text-center text-sm text-[#ffb4ad]">
+        <main class="grid min-h-screen place-items-center bg-backdrop px-6 text-center text-sm text-danger">
           <div>
             <p>{getErrorMessage(error(), "Unable to render settings.")}</p>
             <button
               type="button"
               onClick={() => void settingsCache.refresh().then(reset)}
-              class="mt-3 rounded-md border border-[#6e3a36] px-3.5 py-2 font-semibold"
+              class="mt-3 rounded-md border border-danger/40 px-3.5 py-2 font-semibold"
             >
               Retry
             </button>

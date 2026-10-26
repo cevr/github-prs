@@ -1,135 +1,211 @@
-import { createSignal, createMemo, Switch, Match, For, Show, onSettled } from "solid-js"
+import { createMemo, createSignal, For, Match, onSettled, Show, Switch } from "solid-js"
 import { Errored, Loading } from "@solidjs/web"
-import { usePRSnapshot } from "@/lib/use-pr-snapshot"
-import { createPRCollection } from "@/lib/pr-collection"
 import { getErrorMessage } from "@/lib/format"
-import { setupKeyboardNav } from "./lib/keyboard"
-import { Header } from "./components/header"
-import { TabBar } from "./components/tab-bar"
-import type { Tab } from "./components/tab-bar"
-import { RepoGroup } from "./components/repo-group"
+import { createPRCollection } from "@/lib/pr-collection"
+import type { PRCollection } from "@/lib/pr-collection"
+import type { Perspective } from "@/lib/pr-status"
+import { usePRSnapshot } from "@/lib/use-pr-snapshot"
+import type { CachedPRSnapshot } from "@/lib/use-pr-snapshot"
+import type { SyncState } from "@/types"
 import { EmptyState } from "./components/empty-state"
+import { Header, RefreshButton, SettingsButton } from "./components/header"
+import { PRSection } from "./components/pr-section"
+import { AuthoredRow, ReviewRow } from "./components/pr-row"
 import { SetupPrompt } from "./components/setup-prompt"
+import { PERSPECTIVE } from "./components/stage"
+import { Tabs } from "./components/tabs"
+import { setupKeyboardNav } from "./lib/keyboard"
+import { TrackerProvider, useTracker } from "./tracker"
+
+const PERSPECTIVES: readonly Perspective[] = ["authored", "reviewing"]
+
+function SyncErrorBanner() {
+  const { actions } = useTracker()
+  return (
+    <button
+      type="button"
+      onClick={() => actions.refresh()}
+      class="flex w-full shrink-0 items-center justify-between gap-3 border-0 border-y border-danger/30 bg-danger/10 px-3.5 py-2 text-left text-xs text-danger transition-[background-color] duration-100 ease-out hover:bg-danger/15 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+    >
+      <span class="truncate">Couldn’t refresh. Showing saved pull requests.</span>
+      <span class="shrink-0 font-semibold">Retry</span>
+    </button>
+  )
+}
+
+function Skeleton() {
+  return (
+    <div class="space-y-3 p-3" aria-label="Loading pull requests">
+      <div class="h-3 w-28 animate-pulse rounded bg-surface" />
+      <For each={[0, 1, 2, 3]}>
+        {() => (
+          <div class="flex animate-pulse items-center gap-3">
+            <div class="h-9 flex-1 rounded-md bg-surface" />
+            <div class="size-5 rounded-full bg-surface" />
+          </div>
+        )}
+      </For>
+    </div>
+  )
+}
+
+function PRList(props: {
+  readonly perspective: Perspective
+  readonly collection: PRCollection
+  readonly viewer: string
+}) {
+  return (
+    <Show
+      when={props.collection.sections.length > 0}
+      fallback={<EmptyState perspective={props.perspective} />}
+    >
+      <For each={props.collection.sections} keyed={(section) => section.stage}>
+        {(section) => (
+          <PRSection stage={section().stage} count={section().items.length}>
+            <For each={section().items} keyed={(item) => item.pr.id}>
+              {(item) => (
+                <Switch>
+                  <Match when={props.perspective === "authored"}>
+                    <AuthoredRow item={item()} />
+                  </Match>
+                  <Match when={props.perspective === "reviewing"}>
+                    <ReviewRow item={item()} viewer={props.viewer} />
+                  </Match>
+                </Switch>
+              )}
+            </For>
+          </PRSection>
+        )}
+      </For>
+    </Show>
+  )
+}
+
+function Tracker(props: { readonly snapshot: CachedPRSnapshot; readonly sync: SyncState }) {
+  const [perspective, setPerspective] = createSignal<Perspective>("authored")
+  const collections = createMemo(() => {
+    const { prs, seen, viewer } = props.snapshot
+    return {
+      authored: createPRCollection(prs.authored, seen, { perspective: "authored", viewer }),
+      reviewing: createPRCollection(prs.reviewing, seen, { perspective: "reviewing", viewer }),
+    }
+  })
+  const choose = (value: string) => {
+    const next = PERSPECTIVES.find((candidate) => candidate === value)
+    if (next) setPerspective(next)
+  }
+
+  return (
+    <>
+      <Header sync={props.sync}>
+        <RefreshButton syncing={props.sync.status === "syncing"} />
+        <SettingsButton />
+      </Header>
+      <Show when={props.sync.status === "error"}>
+        <SyncErrorBanner />
+      </Show>
+      <Tabs.Root value={perspective()} onChange={choose}>
+        <Tabs.List label="Pull request lists">
+          <For each={PERSPECTIVES}>
+            {(value) => (
+              <Tabs.Tab value={value}>
+                {PERSPECTIVE[value].tab}
+                <Tabs.Count
+                  total={collections()[value].totalCount}
+                  unseen={collections()[value].unseenCount}
+                />
+              </Tabs.Tab>
+            )}
+          </For>
+        </Tabs.List>
+        <For each={PERSPECTIVES}>
+          {(value) => (
+            <Tabs.Panel value={value} class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <PRList
+                perspective={value}
+                collection={collections()[value]}
+                viewer={props.snapshot.viewer}
+              />
+            </Tabs.Panel>
+          )}
+        </For>
+      </Tabs.Root>
+    </>
+  )
+}
 
 function SidePanelContent() {
-  const { state, refresh, markSeen } = usePRSnapshot()
-  const [activeTab, setActiveTab] = createSignal<Tab>("mine")
-
-  onSettled(() => setupKeyboardNav("#pr-list"))
+  const { state } = useTracker()
+  onSettled(() => setupKeyboardNav())
 
   const available = createMemo(() => {
-    const current = state()
+    const current = state.snapshot()
     if (current.kind === "available") return current
     return undefined
   })
   const unavailable = createMemo(() => {
-    const current = state()
+    const current = state.snapshot()
     if (current.kind === "unavailable") return current
     return undefined
   })
-  const viewer = () => available()?.snapshot.viewer ?? ""
-  const mineCollection = createMemo(() =>
-    createPRCollection(available()?.snapshot.prs.authored ?? [], available()?.snapshot.seen ?? {}, {
-      perspective: "authored",
-      viewer: viewer(),
-    }),
-  )
-  const reviewCollection = createMemo(() =>
-    createPRCollection(
-      available()?.snapshot.prs.reviewing ?? [],
-      available()?.snapshot.seen ?? {},
-      { perspective: "reviewing", viewer: viewer() },
-    ),
-  )
 
   return (
     <Switch>
-      <Match when={state().kind === "setup-needed"}>
-        <Header />
+      <Match when={state.snapshot().kind === "setup-needed"}>
+        <Header>
+          <SettingsButton />
+        </Header>
         <SetupPrompt />
       </Match>
-      <Match when={state().kind === "loading"}>
-        <Header onRefresh={refresh} />
-        <div class="space-y-2 p-3" aria-label="Loading pull requests">
-          <div class="h-9 animate-pulse rounded-md bg-[#161b22]" />
-          <div class="h-13 animate-pulse rounded-md bg-[#161b22]" />
-          <div class="h-13 animate-pulse rounded-md bg-[#161b22]" />
-        </div>
+      <Match when={state.snapshot().kind === "loading"}>
+        <Header sync={{ status: "syncing" }}>
+          <RefreshButton syncing />
+          <SettingsButton />
+        </Header>
+        <Skeleton />
       </Match>
       <Match when={unavailable()}>
-        <Header />
-        <div class="text-center py-12 text-sm text-[#f85149]">{unavailable()?.message}</div>
+        {(failure) => (
+          <>
+            <Header>
+              <RefreshButton syncing={false} />
+              <SettingsButton />
+            </Header>
+            <p role="alert" class="m-0 px-6 py-14 text-center text-sm text-danger">
+              {failure().message}
+            </p>
+          </>
+        )}
       </Match>
       <Match when={available()}>
-        {(data) => {
-          const activeGroups = createMemo(() => {
-            if (activeTab() === "mine") return mineCollection().sections
-            return reviewCollection().sections
-          })
-
-          return (
-            <>
-              <Header onRefresh={refresh} syncState={data().sync} />
-              <Show when={data().sync.status === "error"}>
-                <button
-                  type="button"
-                  onClick={refresh}
-                  class="flex w-full items-center justify-between border-0 border-b border-[#6e3a36] bg-[#2d1618] px-3 py-2 text-left text-xs text-[#ffb4ad] hover:bg-[#3b1d20]"
-                >
-                  <span class="truncate">Couldn’t refresh. Showing saved pull requests.</span>
-                  <span class="ml-2 shrink-0 font-semibold">Retry</span>
-                </button>
-              </Show>
-              <TabBar
-                active={activeTab()}
-                onTabChange={setActiveTab}
-                minePRCount={mineCollection().totalCount}
-                reviewPRCount={reviewCollection().totalCount}
-                mineUnseenCount={mineCollection().unseenCount}
-                reviewUnseenCount={reviewCollection().unseenCount}
-              />
-              <div id="pr-list" class="min-h-0 flex-1 overflow-y-auto">
-                <Switch>
-                  <Match when={activeGroups().length === 0}>
-                    <EmptyState tab={activeTab()} />
-                  </Match>
-                  <Match when={activeGroups().length > 0}>
-                    <For each={activeGroups()}>
-                      {(group) => (
-                        <RepoGroup
-                          group={{ repo: group.stage, items: group.items }}
-                          onMarkSeen={markSeen}
-                        />
-                      )}
-                    </For>
-                  </Match>
-                </Switch>
-              </div>
-            </>
-          )
-        }}
+        {(data) => <Tracker snapshot={data().snapshot} sync={data().sync} />}
       </Match>
     </Switch>
   )
 }
 
 export function SidePanel() {
+  const { state, refresh, markSeen } = usePRSnapshot()
   return (
-    <div class="flex flex-col h-screen bg-[#0d1117] text-[#e6edf3]">
-      <Errored
-        fallback={(error) => (
-          <>
-            <Header />
-            <div class="text-center py-12 text-sm text-[#f85149]">
+    <TrackerProvider
+      value={{
+        state: { snapshot: state },
+        actions: { refresh, markSeen, openSettings: () => void chrome.runtime.openOptionsPage() },
+      }}
+    >
+      <div class="flex h-screen flex-col bg-canvas text-fg">
+        <Errored
+          fallback={(error) => (
+            <p role="alert" class="m-0 px-6 py-14 text-center text-sm text-danger">
               {getErrorMessage(error(), "Unable to render pull requests.")}
-            </div>
-          </>
-        )}
-      >
-        <Loading fallback={<div class="text-center py-12 text-sm text-[#8b949e]">Loading...</div>}>
-          <SidePanelContent />
-        </Loading>
-      </Errored>
-    </div>
+            </p>
+          )}
+        >
+          <Loading fallback={<Skeleton />}>
+            <SidePanelContent />
+          </Loading>
+        </Errored>
+      </div>
+    </TrackerProvider>
   )
 }

@@ -27,7 +27,9 @@ Local extension data is removed when the extension is uninstalled. Chrome-synchr
 
 ## Network use
 
-The extension sends the GitHub token in an authorization header and includes the GitHub username in search queries sent only to **https://api.github.com**. It uses those requests to search pull requests and read pull-request timeline events.
+The extension sends the GitHub token in an authorization header and includes the GitHub username in search queries sent only to **https://api.github.com**. It uses those requests to search pull requests and read their reviews, review requests and latest comments through GitHub's GraphQL API.
+
+The side panel shows the profile pictures of pull-request authors and reviewers. Chrome loads them from GitHub's avatar server (**avatars.githubusercontent.com**, reached through **github.com**) as ordinary images, without the token or any other extension data.
 
 GitHub processes these requests under [GitHub's Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement). The extension does not send data to the developer, analytics providers, advertisers, data brokers, or any other third party.
 

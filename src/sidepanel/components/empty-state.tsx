@@ -1,26 +1,33 @@
+import type { Perspective } from "@/lib/pr-status"
 import { InboxIcon } from "./icons"
+import { PERSPECTIVE } from "./stage"
 
-interface EmptyStateProps {
-  tab: "mine" | "review"
-}
+/** Plays its entrance once: switching back to an empty tab shows it at rest. */
+const settle = (event: AnimationEvent & { currentTarget: HTMLElement }) =>
+  event.currentTarget.classList.remove("enter-once")
 
-export function EmptyState(props: EmptyStateProps) {
-  const message = () => {
-    if (props.tab === "mine") return "No open PRs authored by you."
-    return "No PRs requesting your review."
-  }
-
+export function EmptyState(props: { readonly perspective: Perspective }) {
+  const copy = () => PERSPECTIVE[props.perspective]
   return (
-    <div class="flex flex-col items-center justify-center py-12 text-[#484f58]">
-      <InboxIcon class="mb-3 opacity-40" />
-      <p class="text-sm m-0">{message()}</p>
+    <div class="flex flex-col items-center px-6 py-14 text-center">
+      <span
+        class="enter-once mb-3 grid size-10 place-items-center rounded-full bg-surface text-fg-subtle"
+        onAnimationEnd={settle}
+      >
+        <InboxIcon />
+      </span>
+      <p class="enter-once m-0 text-sm text-fg" style={{ "--chunk": 1 }} onAnimationEnd={settle}>
+        {copy().empty}
+      </p>
       <a
-        href="https://github.com/pulls"
+        href={copy().href}
         target="_blank"
         rel="noopener noreferrer"
-        class="text-xs text-[#58a6ff] no-underline mt-2 hover:underline"
+        class="enter-once mt-1.5 text-xs text-accent no-underline hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        style={{ "--chunk": 2 }}
+        onAnimationEnd={settle}
       >
-        View all PRs on GitHub
+        {copy().link}
       </a>
     </div>
   )

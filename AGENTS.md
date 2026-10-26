@@ -17,32 +17,39 @@ Solid.js · TypeScript strict · Tailwind v4 · Vite 8 · Bun
 
 ```
 src/
-├── types.ts            # Shared types: PR, PRData, SeenPRs, OptionsData
-├── app.css             # Tailwind entry (@import "tailwindcss" + base body)
-├── background.ts       # Service worker: alarm, GitHub API polling, badge, message handler
-├── popup/
-│   ├── popup.html      # Extension popup entry (body width: 350px)
-│   ├── index.tsx       # Solid render mount
-│   └── popup.tsx       # Popup UI: Header, PRList, PopupContent, state management
-└── options/
-    ├── options.html    # Options page entry (max-width: 600px)
-    ├── index.tsx       # Solid render mount
-    └── options.tsx     # Settings form: token, username, interval, hideInactive
-
-manifest.json           # MV3 manifest, service_worker type:module
-vite.config.ts          # 3 entries: popup html, options html, background ts
+├── types.ts                 # Schemas: PR, PRData (authored, reviewing), SeenPRs, SyncState
+├── app.css                  # Tailwind entry + theme tokens (Primer light/dark), base styles
+├── background.ts            # Service worker: alarm, runtime commands
+├── background/
+│   ├── github-pr-source.ts  # One GraphQL search per list → PRData
+│   └── pr-synchronization.ts# Serialized refresh, seen reconciliation, inactive filter
+├── snapshot/                # PR Snapshot storage (chrome.storage.local `pullRequests`) and badge
+├── settings/                # Tracker Settings storage and validation
+├── lib/
+│   ├── pr-status.ts         # Stages per perspective and their order
+│   ├── pr-collection.ts     # PRs → sections by stage, newest first
+│   ├── seen.ts              # The unseen rule shared by UI, badge and sync
+│   └── use-pr-snapshot.ts   # Solid model of the PR Snapshot for the side panel
+├── sidepanel/
+│   ├── sidepanel.tsx        # Composition: TrackerProvider → Header, Tabs, PRList
+│   ├── tracker.tsx          # Context: state (snapshot) + actions (refresh, markSeen, openSettings)
+│   └── components/          # Tabs.*, PRRow.* (AuthoredRow, ReviewRow), PRSection, Avatar, icons
+├── options/                 # Settings page
+└── testing/pr-fixture.ts    # PR builders for tests
+store/fixtures/chrome-mock.js  # Chrome stand-in for rendering pages outside Chrome
 ```
 
 ## Architecture
 
-- **background.ts** — Runs as MV3 service worker. Polls GitHub search API on alarm interval. Fetches PR timelines for approval status + last updater. Deduplicates assigned/review-requested PRs via `dedupPRs()`. Manages badge count/color. Stores `previousPRs` and `seenPRs` in `chrome.storage.local`.
-- **popup.tsx** — Reads cached PR data from storage. Listens for `prsUpdated`/`setupNeeded` messages. Optimistic mark-as-seen on hover/click.
-- **options.tsx** — Form saves to `chrome.storage.sync`. Sends `updateSettings` to background to hot-swap alarm interval.
-- **Message actions**: `checkNow`, `markPRViewed`, `updateSettings`, `prsUpdated`, `setupNeeded`
+- **Background** polls on an alarm and on demand. `GitHubPRSource` runs three searches: authored, review-requested and assigned, both review searches excluding the user's own pull requests.
+- **PR Collection** sorts one perspective into stages (`lib/pr-status.ts`); the side panel renders a section per stage.
+- **Side panel** parts read state and actions from `TrackerContext`; compound parts (`Tabs.*`, `PRRow.*`) compose the two row variants instead of boolean props.
+- **Message actions**: `checkNow`, `markPRViewed`, `updateSettings`, `prSnapshotChanged`, `setupNeeded`
 
 ## Conventions
 
-- Styles are Tailwind utility classes inline in TSX — no CSS files per component
+- Styles are Tailwind utility classes inline in TSX using the theme tokens in `app.css` (`bg-canvas`, `text-fg-muted`); never a literal color
 - Types shared via `src/types.ts` — never duplicate PR/PRData/SeenPRs
+- Lint forbids ternaries: use a small function with `if`, `Show`, or a lookup table
 - Solid.js (not React): `createResource`, `createSignal`, `Show`/`For`/`Switch`/`Match`
 - camelCase vars/functions, PascalCase components
