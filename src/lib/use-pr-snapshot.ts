@@ -101,27 +101,6 @@ export function usePRSnapshot(): PRSnapshotModel {
     { lazy: true, name: "PRSnapshot.state", ownedWrite: true },
   )
 
-  createEffect(
-    () => state(),
-    (current) => {
-      if (current.kind === "loading" && !initialRefreshRequested) {
-        initialRefreshRequested = true
-        void Effect.runPromise(sendRuntimeCommand({ action: "checkNow" }))
-      } else if (current.kind === "available") {
-        initialRefreshRequested = false
-      }
-    },
-  )
-
-  const unsubscribe = subscribeToRuntimeEvents((event) => {
-    if (event.action === "prSnapshotChanged") {
-      void snapshotCache.refresh()
-    } else {
-      setState({ kind: "setup-needed" })
-    }
-  })
-  onCleanup(unsubscribe)
-
   const refresh = () => {
     const current = state()
     if (current.kind === "available") {
@@ -138,6 +117,34 @@ export function usePRSnapshot(): PRSnapshotModel {
     }
     void Effect.runPromise(sendRuntimeCommand({ action: "checkNow" }))
   }
+
+  // Opening the panel shows the saved list and refreshes it once; a first load's sync counts as that.
+  let refreshedOnOpen = false
+  createEffect(
+    () => state(),
+    (current) => {
+      if (current.kind === "loading" && !initialRefreshRequested) {
+        initialRefreshRequested = true
+        refreshedOnOpen = true
+        void Effect.runPromise(sendRuntimeCommand({ action: "checkNow" }))
+      } else if (current.kind === "available") {
+        initialRefreshRequested = false
+        if (!refreshedOnOpen) {
+          refreshedOnOpen = true
+          refresh()
+        }
+      }
+    },
+  )
+
+  const unsubscribe = subscribeToRuntimeEvents((event) => {
+    if (event.action === "prSnapshotChanged") {
+      void snapshotCache.refresh()
+    } else {
+      setState({ kind: "setup-needed" })
+    }
+  })
+  onCleanup(unsubscribe)
 
   const markSeen = (prId: number) => {
     setState((current) => {

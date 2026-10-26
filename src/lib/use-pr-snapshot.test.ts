@@ -90,7 +90,7 @@ function createSnapshotModel() {
 const settle = yieldFibers.pipe(Effect.andThen(Effect.sync(flush)))
 
 describe("PR snapshot", () => {
-  it.scopedLive("keeps the cached snapshot available while refresh runs and fails", () =>
+  it.scopedLive("refreshes once on open and keeps the saved list while that refresh fails", () =>
     Effect.gen(function* () {
       const storage: MockState = {
         sync: { username: "cevr" },
@@ -105,14 +105,12 @@ describe("PR snapshot", () => {
       const { model } = yield* createSnapshotModel()
       yield* settle
 
-      expect(model.state().kind).toBe("available")
-      model.refresh()
-      flush()
       expect(model.state()).toMatchObject({
         kind: "available",
         snapshot: { prs: emptyPRs },
         sync: { status: "syncing" },
       })
+      expect(mock.messages).toEqual([{ action: "checkNow" }])
 
       const failedSync: SyncState = {
         status: "error",
@@ -128,6 +126,7 @@ describe("PR snapshot", () => {
         snapshot: { prs: emptyPRs },
         sync: { status: "error", message: "offline" },
       })
+      expect(mock.messages).toEqual([{ action: "checkNow" }])
     }),
   )
 
@@ -148,7 +147,7 @@ describe("PR snapshot", () => {
     }),
   )
 
-  it.scopedLive("makes an interrupted persisted sync retryable", () =>
+  it.scopedLive("retries an interrupted persisted sync on open", () =>
     Effect.gen(function* () {
       const mock = yield* installChrome({
         sync: { username: "cevr" },
@@ -164,10 +163,8 @@ describe("PR snapshot", () => {
 
       expect(model.state()).toMatchObject({
         kind: "available",
-        sync: { status: "error", message: "The previous refresh was interrupted. Try again." },
+        sync: { status: "syncing", lastSyncedAt: "2026-07-16T12:00:00.000Z" },
       })
-
-      model.refresh()
       expect(mock.messages).toEqual([{ action: "checkNow" }])
     }),
   )
