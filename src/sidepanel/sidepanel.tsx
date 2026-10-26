@@ -14,6 +14,8 @@ import { AuthoredRow, ReviewRow } from "./components/pr-row"
 import { SetupPrompt } from "./components/setup-prompt"
 import { PERSPECTIVE } from "./components/stage"
 import { Tabs } from "./components/tabs"
+import { createCollapsedSections } from "./lib/collapsed-sections"
+import type { CollapsedSections } from "./lib/collapsed-sections"
 import { setupKeyboardNav } from "./lib/keyboard"
 import { TrackerProvider, useTracker } from "./tracker"
 
@@ -53,6 +55,7 @@ function PRList(props: {
   readonly perspective: Perspective
   readonly collection: PRCollection
   readonly viewer: string
+  readonly sections: CollapsedSections
 }) {
   return (
     <Show
@@ -61,7 +64,13 @@ function PRList(props: {
     >
       <For each={props.collection.sections} keyed={(section) => section.stage}>
         {(section) => (
-          <PRSection stage={section().stage} count={section().items.length}>
+          <PRSection
+            stage={section().stage}
+            count={section().items.length}
+            unseen={section().items.filter((item) => item.unseen).length}
+            collapsed={props.sections.isCollapsed(props.perspective, section().stage)}
+            onToggle={() => props.sections.toggle(props.perspective, section().stage)}
+          >
             <For each={section().items} keyed={(item) => item.pr.id}>
               {(item) => (
                 <Switch>
@@ -83,6 +92,7 @@ function PRList(props: {
 
 function Tracker(props: { readonly snapshot: CachedPRSnapshot; readonly sync: SyncState }) {
   const [perspective, setPerspective] = createSignal<Perspective>("authored")
+  const sections = createCollapsedSections()
   const collections = createMemo(() => {
     const { prs, seen, viewer } = props.snapshot
     return {
@@ -125,6 +135,7 @@ function Tracker(props: { readonly snapshot: CachedPRSnapshot; readonly sync: Sy
                 perspective={value}
                 collection={collections()[value]}
                 viewer={props.snapshot.viewer}
+                sections={sections}
               />
             </Tabs.Panel>
           )}

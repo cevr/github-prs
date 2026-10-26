@@ -1,3 +1,4 @@
+import { sameLogin } from "@/types"
 import type { PR, SeenPRs } from "@/types"
 import { authoredStage, reviewingStage, STAGES } from "./pr-status"
 import type { Perspective, Stage } from "./pr-status"
@@ -30,8 +31,9 @@ export interface PRCollectionLens {
   readonly viewer: string
 }
 
-function hasNewComment(pr: PR, seen: Readonly<SeenPRs>): boolean {
-  if (!pr.lastComment) return false
+/** Someone else commented after the user last opened the pull request; the user's own never count. */
+function hasNewComment(pr: PR, seen: Readonly<SeenPRs>, viewer: string): boolean {
+  if (!pr.lastComment || sameLogin(pr.lastComment.by, viewer)) return false
   const seenAt = seen[pr.id.toString()]
   return !seenAt || parseEpochMillis(pr.lastComment.at) > parseEpochMillis(seenAt)
 }
@@ -49,7 +51,7 @@ export function createPRCollection(
     if (lens.perspective === "reviewing") stage = reviewingStage(pr, lens.viewer)
     const unseen = isUnseen(pr, seen)
     if (unseen) unseenCount++
-    const item = { pr, stage, unseen, newComment: hasNewComment(pr, seen) }
+    const item = { pr, stage, unseen, newComment: hasNewComment(pr, seen, lens.viewer) }
     const items = byStage.get(stage)
     if (items) items.push(item)
     else byStage.set(stage, [item])

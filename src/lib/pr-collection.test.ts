@@ -92,4 +92,12 @@ describe("PR collection", () => {
     expect(before.sections[0]?.items[0]?.newComment).toBe(true)
     expect(after.sections[0]?.items[0]?.newComment).toBe(false)
   })
+
+  test("never flags the user's own comment as new", () => {
+    const own = pr({ id: 1, lastComment: { by: "Cevr", at: "2026-07-16T11:00:00.000Z" } })
+
+    const collection = createPRCollection([own], {}, { perspective: "authored", viewer: "cevr" })
+
+    expect(collection.sections[0]?.items[0]?.newComment).toBe(false)
+  })
 })
