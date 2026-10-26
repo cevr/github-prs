@@ -84,9 +84,10 @@ for (const entry of entries) {
 }
 
 const listingImages: readonly ListingImage[] = [
-  { path: "store/assets/settings-1280x800.png", width: 1280, height: 800 },
-  { path: "store/assets/privacy-controls-1280x800.png", width: 1280, height: 800 },
-  { path: "store/assets/sidepanel-640x400.png", width: 640, height: 400 },
+  { path: "store/assets/1-stacks-1280x800.png", width: 1280, height: 800 },
+  { path: "store/assets/2-status-1280x800.png", width: 1280, height: 800 },
+  { path: "store/assets/3-reviews-1280x800.png", width: 1280, height: 800 },
+  { path: "store/assets/4-private-1280x800.png", width: 1280, height: 800 },
   { path: "store/assets/promo-440x280.png", width: 440, height: 280 },
 ]
 

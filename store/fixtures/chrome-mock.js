@@ -128,7 +128,13 @@ Object.assign((globalThis.chrome ??= {}), {
       addListener: (listener) => listeners.add(listener),
       removeListener: (listener) => listeners.delete(listener),
     },
-    sendMessage: async () => undefined,
+    // A refresh finishes at once with the same pull requests. Chrome delivers the background's answer
+    // in a later task, never during the send, so the mock does too.
+    sendMessage: async (message) => {
+      if (message?.action !== "checkNow") return
+      local.syncState = { status: "idle", lastSyncedAt: new Date().toISOString() }
+      setTimeout(() => listeners.forEach((listener) => listener({ action: "prSnapshotChanged" })))
+    },
     openOptionsPage: async () => undefined,
     getURL: (path) => path,
   },

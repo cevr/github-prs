@@ -13,9 +13,7 @@
 
 ## Store listing assets
 
-- [x] Settings screenshot: **store/assets/settings-1280x800.png**.
-- [x] Privacy-controls screenshot: **store/assets/privacy-controls-1280x800.png**.
-- [x] Side-panel screenshot: **store/assets/sidepanel-640x400.png**.
+- [x] Screenshots, in upload order: **store/assets/1-stacks-1280x800.png**, **2-status-1280x800.png**, **3-reviews-1280x800.png**, **4-private-1280x800.png**. Each frames a 2× capture of the page rendered with **store/fixtures/chrome-mock.js** in **store/screenshot-source.html** (query: theme, img, h, p).
 - [x] Small promotional image: **store/assets/promo-440x280.png**.
 
 ## Developer Dashboard

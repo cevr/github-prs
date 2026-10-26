@@ -6,18 +6,19 @@ GitHub PR Tracker
 
 ## Summary
 
-Scan the GitHub pull requests you created or need to review from Chrome's side panel.
+Your GitHub pull requests and review requests in Chrome's side panel, stacks kept together, ordered by review status.
 
 ## Detailed description
 
-GitHub PR Tracker gives developers one fast, client-only view of active pull requests.
+GitHub PR Tracker gives developers one fast, client-only view of active pull requests in Chrome's side panel.
 
-- See open pull requests you authored.
-- See assigned and review-requested pull requests.
-- Order work by review status: changes requested and approved pull requests first, then the ones still in review, then drafts.
+- See the open pull requests you authored, and the ones assigned to you or waiting on your review.
+- Keep stacked pull requests together. Each stack gets its own section that shows its first pull request, the branch it merges into, and how many of its pull requests are approved, reviewed, or need changes.
+- Order work by review status: changes requested and approved first, then reviewed, then awaiting review, then drafts.
+- Fold any section or stack to one line. The panel remembers what you fold.
 - Keep your own pull requests out of the review list, even when they are assigned to you.
 - Surface unseen activity and new comments.
-- Keep the last saved snapshot visible during background refreshes or network failures.
+- Refresh each time the side panel opens and in the background, and keep the last saved list visible while a refresh runs or fails.
 
 Your GitHub token stays in local Chrome storage and is sent only to GitHub's API. Pull-request data is cached locally for fast rendering. There is no developer server, analytics, advertising, tracking, or sale of data.
 
@@ -38,7 +39,7 @@ Show a developer's active authored and review-requested GitHub pull requests, re
 - **storage** — Stores the local GitHub token, cached pull-request snapshot, seen timestamps, sync status, username, and refresh preferences.
 - **alarms** — Refreshes pull-request data in the background at the interval selected by the user.
 - **sidePanel** — Shows the tracker beside the current tab.
-- **Host access to api.github.com** — Searches authorized repositories for pull requests and reads their reviews, review requests and latest comments through GitHub's GraphQL API. No other host is requested.
+- **Host access to api.github.com** — Searches authorized repositories for pull requests and reads their reviews, review requests, branch names and latest comments through GitHub's GraphQL API. No other host is requested.
 
 ## Privacy practices answers
 
