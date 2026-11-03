@@ -1,5 +1,5 @@
 import { Effect, Option, Schema } from "effect"
-import { KeyValueStore } from "effect/unstable/persistence"
+import { KeyValueStore } from "effect/persistence"
 import { createSignal } from "solid-js"
 import type { Perspective, Stage } from "@/lib/pr-status"
 

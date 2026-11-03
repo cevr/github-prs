@@ -1,15 +1,15 @@
 import { Context, Effect, Layer, Schema } from "effect"
-import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
+import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http"
 import type { TrackerSettings } from "@/settings/tracker-settings"
 import { PRData, sameLogin } from "@/types"
 import type { Activity, Person, PR, Review, ReviewVerdict } from "@/types"
 
-export class GitHubAuthenticationError extends Schema.TaggedErrorClass<GitHubAuthenticationError>()(
+export class GitHubAuthenticationError extends Schema.TaggedError<GitHubAuthenticationError>()(
   "GitHubAuthenticationError",
   { message: Schema.String },
 ) {}
 
-export class GitHubApiError extends Schema.TaggedErrorClass<GitHubApiError>()("GitHubApiError", {
+export class GitHubApiError extends Schema.TaggedError<GitHubApiError>()("GitHubApiError", {
   operation: Schema.String,
   message: Schema.String,
   status: Schema.optional(Schema.Number),

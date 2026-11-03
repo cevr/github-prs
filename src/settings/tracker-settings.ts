@@ -17,7 +17,7 @@ export const TrackerSettings = Schema.Struct({
 })
 export type TrackerSettings = typeof TrackerSettings.Type
 
-export class InvalidTrackerSettingsError extends Schema.TaggedErrorClass<InvalidTrackerSettingsError>()(
+export class InvalidTrackerSettingsError extends Schema.TaggedError<InvalidTrackerSettingsError>()(
   "InvalidTrackerSettingsError",
   {
     field: Schema.Literals(["token", "username"]),

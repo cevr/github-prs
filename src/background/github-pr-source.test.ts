@@ -1,5 +1,5 @@
 import { Effect, Layer, Schema } from "effect"
-import { HttpClient, HttpClientResponse, type HttpClientRequest } from "effect/unstable/http"
+import { HttpClient, HttpClientResponse, type HttpClientRequest } from "effect/http"
 import { describe, expect, it } from "effect-bun-test"
 import type { TrackerSettings } from "@/settings/tracker-settings"
 import { fetchGitHubPullRequests, GitHubPRSourceLive } from "./github-pr-source"

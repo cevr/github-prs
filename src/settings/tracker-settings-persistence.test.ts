@@ -6,7 +6,7 @@ import {
 } from "./tracker-settings-persistence"
 import type { TrackerSettingsPersistenceChange } from "./tracker-settings-persistence"
 
-class ChromeStorageUnavailableError extends Schema.TaggedErrorClass<ChromeStorageUnavailableError>()(
+class ChromeStorageUnavailableError extends Schema.TaggedError<ChromeStorageUnavailableError>()(
   "ChromeStorageUnavailableError",
   { message: Schema.String },
 ) {}

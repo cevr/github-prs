@@ -39,7 +39,7 @@ interface Entry<A> {
   queuedRefreshPromise?: Promise<void>
 }
 
-class CacheDataError extends Schema.TaggedErrorClass<CacheDataError>()("CacheDataError", {
+class CacheDataError extends Schema.TaggedError<CacheDataError>()("CacheDataError", {
   message: Schema.String,
 }) {}
 

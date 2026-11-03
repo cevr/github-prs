@@ -27,7 +27,7 @@ export type TrackerSettingsPersistenceChange =
   | { readonly kind: "clear-account" }
   | { readonly kind: "restrict-access" }
 
-export class TrackerSettingsStorageError extends Schema.TaggedErrorClass<TrackerSettingsStorageError>()(
+export class TrackerSettingsStorageError extends Schema.TaggedError<TrackerSettingsStorageError>()(
   "TrackerSettingsStorageError",
   {
     operation: Schema.String,

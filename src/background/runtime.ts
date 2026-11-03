@@ -1,5 +1,5 @@
 import { Layer, ManagedRuntime } from "effect"
-import { FetchHttpClient } from "effect/unstable/http"
+import { FetchHttpClient } from "effect/http"
 import { TrackerSettingsLive } from "@/settings/tracker-settings"
 import { ChromePRSnapshotPublicationLive } from "@/snapshot/chrome-pr-snapshot-publication"
 import { GitHubPRSourceLive } from "./github-pr-source"

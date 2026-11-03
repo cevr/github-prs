@@ -10,7 +10,7 @@ import {
   restrictTrackerStorageAccess,
 } from "./settings/tracker-settings"
 
-class BackgroundChromeError extends Schema.TaggedErrorClass<BackgroundChromeError>()(
+class BackgroundChromeError extends Schema.TaggedError<BackgroundChromeError>()(
   "BackgroundChromeError",
   {
     operation: Schema.String,

@@ -1,7 +1,7 @@
 import { Context, Effect, Schema } from "effect"
 import type { PRData, SeenPRs, SyncState } from "@/types"
 
-export class PRSnapshotPublicationError extends Schema.TaggedErrorClass<PRSnapshotPublicationError>()(
+export class PRSnapshotPublicationError extends Schema.TaggedError<PRSnapshotPublicationError>()(
   "PRSnapshotPublicationError",
   {
     operation: Schema.String,

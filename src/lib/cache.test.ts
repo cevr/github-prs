@@ -3,7 +3,7 @@ import { createRoot, flush, NotReadyError, resolve } from "@solidjs/signals"
 import { describe, expect, it, yieldFibers } from "effect-bun-test"
 import { createCache } from "./cache"
 
-class CacheLoadError extends Schema.TaggedErrorClass<CacheLoadError>()("CacheLoadError", {
+class CacheLoadError extends Schema.TaggedError<CacheLoadError>()("CacheLoadError", {
   message: Schema.String,
 }) {}
 
