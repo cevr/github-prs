@@ -5,7 +5,7 @@ import { PRData, SeenPRs, SyncState } from "@/types"
 import { PRSnapshotPublication, PRSnapshotPublicationError } from "./pr-snapshot-publication"
 import type { PRSnapshotChange } from "./pr-snapshot-publication"
 
-const LEGACY_KEYS = ["previousPRs"]
+const KEYS_FROM_BUILDS_BEFORE_1_2 = ["previousPRs"]
 
 const StoredPublicationState = Schema.Struct({
   pullRequests: Schema.optionalKey(PRData),
@@ -113,7 +113,7 @@ const publish = Effect.fn("PRSnapshotPublication.publish")(function* (change: PR
     }),
   )
   yield* storageOperation("remove superseded pull-request state", () =>
-    chrome.storage.local.remove(LEGACY_KEYS),
+    chrome.storage.local.remove(KEYS_FROM_BUILDS_BEFORE_1_2),
   )
   yield* publishRuntimeEvent({ action: "prSnapshotChanged" })
   yield* updateBadge(change.attention).pipe(
@@ -123,7 +123,12 @@ const publish = Effect.fn("PRSnapshotPublication.publish")(function* (change: PR
 
 const clear = Effect.fn("PRSnapshotPublication.clear")(function* () {
   yield* storageOperation("clear the pull-request snapshot", () =>
-    chrome.storage.local.remove(["pullRequests", "seenPRs", "syncState", ...LEGACY_KEYS]),
+    chrome.storage.local.remove([
+      "pullRequests",
+      "seenPRs",
+      "syncState",
+      ...KEYS_FROM_BUILDS_BEFORE_1_2,
+    ]),
   )
   yield* publishRuntimeEvent({ action: "setupNeeded" })
   yield* updateBadge({ total: 0, hasUnseen: false }).pipe(

@@ -26,3 +26,7 @@ bun run package:extension
 ```
 
 The validated upload appears in **release/github-pr-tracker-VERSION.zip**.
+
+## Credits
+
+The status icons are [Octicons](https://github.com/primer/octicons) 19.42.0, 16px set, by GitHub, under the MIT license.

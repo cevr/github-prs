@@ -3,7 +3,7 @@ import { KeyValueStore } from "effect/persistence"
 import { createSignal } from "solid-js"
 import type { Perspective, Stage } from "@/lib/pr-status"
 
-const STORAGE_KEY = "collapsedSections"
+const FOLDS_KEY_FROM_BEFORE_STACK_FOLDS = "collapsedSections"
 
 const foldStore = Effect.map(KeyValueStore.KeyValueStore, (store) =>
   KeyValueStore.toSchemaStore(store, Schema.Array(Schema.String)),
@@ -22,7 +22,7 @@ function stackKey(perspective: Perspective, stack: string): string {
 function read(): ReadonlySet<string> {
   return Effect.runSync(
     foldStore.pipe(
-      Effect.flatMap((store) => store.get(STORAGE_KEY)),
+      Effect.flatMap((store) => store.get(FOLDS_KEY_FROM_BEFORE_STACK_FOLDS)),
       Effect.map(
         Option.match({ onNone: () => new Set<string>(), onSome: (saved) => new Set(saved) }),
       ),
@@ -34,7 +34,7 @@ function read(): ReadonlySet<string> {
 function write(folded: ReadonlySet<string>) {
   Effect.runSync(
     foldStore.pipe(
-      Effect.flatMap((store) => store.set(STORAGE_KEY, Array.from(folded))),
+      Effect.flatMap((store) => store.set(FOLDS_KEY_FROM_BEFORE_STACK_FOLDS, Array.from(folded))),
       Effect.catchCause(() => Effect.void),
     ),
   )
@@ -43,15 +43,15 @@ function write(folded: ReadonlySet<string>) {
 export type Folds = ReturnType<typeof createFolds>
 
 export function createFolds() {
-  let latest = read()
-  const [folded, setFolded] = createSignal(latest)
+  let latestAheadOfSignal = read()
+  const [folded, setFolded] = createSignal(latestAheadOfSignal)
   const commit = (next: ReadonlySet<string>) => {
-    latest = next
+    latestAheadOfSignal = next
     setFolded(next)
     write(next)
   }
   const toggle = (key: string) => {
-    const next = new Set(latest)
+    const next = new Set(latestAheadOfSignal)
     if (!next.delete(key)) next.add(key)
     commit(next)
   }
@@ -69,9 +69,9 @@ export function createFolds() {
     ) => {
       const keep = new Set(live.map((entry) => stackKey(entry.perspective, entry.stack)))
       const next = new Set(
-        Array.from(latest).filter((key) => !key.includes(STACK) || keep.has(key)),
+        Array.from(latestAheadOfSignal).filter((key) => !key.includes(STACK) || keep.has(key)),
       )
-      if (next.size !== latest.size) commit(next)
+      if (next.size !== latestAheadOfSignal.size) commit(next)
     },
   }
 }
