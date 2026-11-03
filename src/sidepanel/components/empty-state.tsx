@@ -2,7 +2,6 @@ import type { Perspective } from "@/lib/pr-status"
 import { InboxIcon } from "./icons"
 import { PERSPECTIVE } from "./stage"
 
-/** Plays its entrance once: switching back to an empty tab shows it at rest. */
 const settle = (event: AnimationEvent & { currentTarget: HTMLElement }) =>
   event.currentTarget.classList.remove("enter-once")
 

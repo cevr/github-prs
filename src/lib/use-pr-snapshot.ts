@@ -12,7 +12,6 @@ import type { PRData, SeenPRs, SyncState } from "@/types"
 export interface CachedPRSnapshot {
   readonly prs: PRData
   readonly seen: SeenPRs
-  /** The user's GitHub login, whose side of each pull request decides its order. */
   readonly viewer: string
 }
 
@@ -118,7 +117,6 @@ export function usePRSnapshot(): PRSnapshotModel {
     void Effect.runPromise(sendRuntimeCommand({ action: "checkNow" }))
   }
 
-  // Opening the panel shows the saved list and refreshes it once; a first load's sync counts as that.
   let refreshedOnOpen = false
   createEffect(
     () => state(),

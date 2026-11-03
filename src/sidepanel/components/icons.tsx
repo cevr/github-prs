@@ -1,5 +1,3 @@
-// Octicons 19.42.0 (MIT, github.com/primer/octicons), 16px set: GitHub's own glyphs, so each status
-// reads as it does on GitHub. Decorative by default; name them where they carry meaning alone.
 import type { JSX } from "@solidjs/web"
 
 export type IconProps = JSX.SvgSVGAttributes<SVGSVGElement>

@@ -6,11 +6,9 @@ const T = "2026-07-16T10:00:00.000Z"
 
 type Collection = ReturnType<typeof createPRCollection>
 
-/** Each section's stage and the ids of its pull requests. */
 const stagesOf = (collection: Collection) =>
   collection.sections.map((section) => [section.stage, section.items.map((item) => item.pr.id)])
 
-/** Each stack's ids, top first. */
 const stackIds = (collection: Collection) =>
   collection.stacks.map((stack) => stack.items.map((item) => item.pr.id))
 

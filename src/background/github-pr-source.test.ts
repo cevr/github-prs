@@ -64,11 +64,6 @@ function searchPage(list: readonly unknown[], endCursor: string | null = null) {
   }
 }
 
-/**
- * A GraphQL endpoint that answers each search from `answer`, and each request for more of a pull
- * request's verdicts (named by its node `id`, with no search query) from `more`. It records what was
- * asked.
- */
 function graphql(
   answer: (query: string, after: string | null) => unknown,
   more: (id: string, after: string | null) => unknown = () => ({ data: { node: null } }),

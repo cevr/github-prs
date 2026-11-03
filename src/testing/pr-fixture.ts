@@ -8,7 +8,6 @@ export function review(login: string, verdict: Review["verdict"], submittedAt: s
   return { reviewer: person(login), verdict, submittedAt }
 }
 
-/** An open, ready pull request by `cevr` that nobody has reviewed yet. */
 export function pr(overrides: Partial<PR> = {}): PR {
   const id = overrides.id ?? 1
   return {

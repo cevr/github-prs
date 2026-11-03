@@ -3,7 +3,6 @@ import { KeyValueStore } from "effect/persistence"
 import { createSignal } from "solid-js"
 import type { Perspective, Stage } from "@/lib/pr-status"
 
-// The name predates stack folds; it stays so sections folded before them stay folded.
 const STORAGE_KEY = "collapsedSections"
 
 const foldStore = Effect.map(KeyValueStore.KeyValueStore, (store) =>
@@ -20,8 +19,6 @@ function stackKey(perspective: Perspective, stack: string): string {
   return `${perspective}${STACK}${stack}`
 }
 
-// Web Storage is synchronous, so the panel reads its preference before its first render. Unreadable
-// or blocked storage opens everything; a failed write is simply not remembered.
 function read(): ReadonlySet<string> {
   return Effect.runSync(
     foldStore.pipe(
@@ -43,15 +40,9 @@ function write(folded: ReadonlySet<string>) {
   )
 }
 
-/**
- * Which sections and stacks the user folded, per tab. A view preference of this side panel, so it
- * stays in the panel's own storage on this device; everything starts open.
- */
 export type Folds = ReturnType<typeof createFolds>
 
 export function createFolds() {
-  // The latest set, ahead of the signal: a signal read returns its old value until Solid flushes, so
-  // two toggles in one tick would otherwise lose the first.
   let latest = read()
   const [folded, setFolded] = createSignal(latest)
   const commit = (next: ReadonlySet<string>) => {
@@ -73,7 +64,6 @@ export function createFolds() {
     isStackFolded: (perspective: Perspective, stack: string) =>
       folded().has(stackKey(perspective, stack)),
     toggleStack: (perspective: Perspective, stack: string) => toggle(stackKey(perspective, stack)),
-    /** Forgets folds of stacks that are gone, merged or closed, so the saved set does not grow. */
     keepStacks: (
       live: readonly { readonly perspective: Perspective; readonly stack: string }[],
     ) => {

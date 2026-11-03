@@ -10,10 +10,6 @@ import { TONE_TEXT, VERDICT } from "./stage"
 
 const RowContext = createContext<Accessor<PRCollectionItem>>()
 
-/**
- * One pull request: a link to it on GitHub that marks it seen. The list it sits in owns its item. Its parts sit on a two-line grid, title
- * and time above, details and people below; the authored and reviewing rows compose them differently.
- */
 function Root(props: ParentProps<{ readonly item: PRCollectionItem }>) {
   const { actions } = useTracker()
   const item = () => props.item
@@ -66,7 +62,6 @@ function Time() {
   )
 }
 
-/** The second line: short facts separated by middots. */
 function Details(props: ParentProps) {
   return (
     <span class="col-start-2 row-start-2 flex min-w-0 items-center text-[11px] leading-4 text-fg-muted [&>*]:shrink-0 [&>*:first-child]:shrink [&>*:first-child]:truncate [&>*+*]:before:mx-1 [&>*+*]:before:text-fg-subtle [&>*+*]:before:content-['·']">
@@ -112,7 +107,6 @@ function NewComment() {
 
 export const PRRow = { Root, Title, Time, Details, People, Reference, Conflicts, NewComment }
 
-/** A pull request the user opened: who reviewed it, how, and who still owes a review. */
 export function AuthoredRow(props: { readonly item: PRCollectionItem }) {
   return (
     <PRRow.Root item={props.item}>
@@ -133,13 +127,11 @@ export function AuthoredRow(props: { readonly item: PRCollectionItem }) {
   )
 }
 
-/** A pull request waiting on the user's review: whose it is, and the user's own verdict once given. */
 export function ReviewRow(props: { readonly item: PRCollectionItem; readonly viewer: string }) {
   const verdict = () => {
     const review = viewerReview(props.item.pr, props.viewer)
     return review && VERDICT[review.verdict]
   }
-  // A review the user already gave that the author asks for again.
   const askedAgain = () => props.item.stage === "review-requested" && verdict() !== undefined
   return (
     <PRRow.Root item={props.item}>

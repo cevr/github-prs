@@ -13,11 +13,6 @@ const OUTLINE: Readonly<Record<Tone | "requested", string>> = {
   requested: "outline-dashed outline-fg-subtle",
 }
 
-/**
- * A GitHub profile picture. Its outline carries the person's part in the pull request: a verdict's
- * tone, dashed while a review is still owed, none for the author. The initial shows until the picture
- * loads, and stays if it never does.
- */
 export function Avatar(props: { readonly person: Person; readonly mark?: Tone | "requested" }) {
   return (
     <span
@@ -45,7 +40,6 @@ export function Avatar(props: { readonly person: Person; readonly mark?: Tone | 
 
 const MAX_SHOWN = 3
 
-/** Who has reviewed and who still owes a review, as GitHub's reviewer list shows them. */
 export function ReviewerStack(props: {
   readonly reviews: readonly Review[]
   readonly requested: readonly Person[]

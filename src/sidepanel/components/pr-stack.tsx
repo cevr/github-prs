@@ -13,7 +13,6 @@ function StageIcon(props: { readonly stage: Stage; readonly class?: string }) {
   return <Icon class={[props.class, TONE_TEXT[look().tone]]} />
 }
 
-/** A stack member's own stage, as a node on the stack's line. */
 function StageNode(props: { readonly item: PRCollectionItem }) {
   return (
     <span
@@ -27,7 +26,6 @@ function StageNode(props: { readonly item: PRCollectionItem }) {
   )
 }
 
-/** How many members sit at one stage, as an icon and a count. */
 function TallyMark(props: { readonly stage: Stage; readonly count: number }) {
   const label = () => `${STAGE[props.stage].title}: ${props.count}`
   return (
@@ -43,16 +41,9 @@ interface PRStackProps {
   readonly stack: PRCollectionStack
   readonly collapsed: boolean
   readonly onToggle: () => void
-  /** Draws each member as its list does. */
   readonly row: (item: PRCollectionItem) => JSX.Element
 }
 
-/**
- * Pull requests stacked on one another, as a section of their own. The heading leads with the
- * stack's first pull request, the one on the base branch, for what the stack is about; below it the
- * repository, the size, the base branch and a count of members at each stage, so a folded stack still
- * shows where it stands. The members follow, top first, on a line through each one's stage.
- */
 export function PRStack(props: PRStackProps) {
   const first = () => props.stack.first.pr
   const repository = () => first().repository.split("/").at(-1) ?? first().repository
@@ -72,7 +63,6 @@ export function PRStack(props: PRStackProps) {
             <FoldSection.Unseen count={props.stack.unseen} />
           </span>
           <span class="flex min-w-0 items-center gap-2 text-[11px] font-normal text-fg-muted">
-            {/* The repository gives way first: the base branch says more about the stack. */}
             <span class="flex min-w-0 items-center">
               <span title={first().repository} class="min-w-0 truncate">
                 {repository()}

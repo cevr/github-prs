@@ -9,7 +9,6 @@ interface TabsApi {
 
 const TabsContext = createContext<TabsApi>()
 
-/** Tabs that switch at once: the side panel switches them too often for motion to help. */
 function Root(
   props: ParentProps<{ readonly value: string; readonly onChange: (value: string) => void }>,
 ) {
@@ -27,7 +26,6 @@ function Root(
   )
 }
 
-/** The arrow keys move between tabs and select them, as in a native tab list. */
 function List(props: ParentProps<{ readonly label: string }>) {
   const { actions } = useContext(TabsContext)
   const move = (event: KeyboardEvent & { currentTarget: HTMLDivElement }) => {
@@ -56,7 +54,6 @@ function List(props: ParentProps<{ readonly label: string }>) {
 function Tab(props: ParentProps<{ readonly value: string }>) {
   const { state, actions, meta } = useContext(TabsContext)
   const selected = () => state.selected() === props.value
-  // ARIA needs the literal "false", and only the selected tab takes Tab focus.
   const ariaSelected = () => {
     if (selected()) return "true"
     return "false"
@@ -83,7 +80,6 @@ function Tab(props: ParentProps<{ readonly value: string }>) {
   )
 }
 
-/** A panel stays mounted while hidden, so switching back keeps its scroll position. */
 function Panel(props: ParentProps<{ readonly value: string; readonly class?: string }>) {
   const { state, meta } = useContext(TabsContext)
   return (
@@ -99,7 +95,6 @@ function Panel(props: ParentProps<{ readonly value: string; readonly class?: str
   )
 }
 
-/** How many pull requests a tab holds; blue while some changed since the user last opened them. */
 function Count(props: { readonly total: number; readonly unseen: number }) {
   return (
     <span

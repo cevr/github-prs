@@ -5,8 +5,6 @@ import { PRData, SeenPRs, SyncState } from "@/types"
 import { PRSnapshotPublication, PRSnapshotPublicationError } from "./pr-snapshot-publication"
 import type { PRSnapshotChange } from "./pr-snapshot-publication"
 
-// Pull requests live under `pullRequests`. Builds before 1.2 kept another shape under `previousPRs`;
-// it is never read, and the next snapshot or a disconnect deletes it.
 const LEGACY_KEYS = ["previousPRs"]
 
 const StoredPublicationState = Schema.Struct({

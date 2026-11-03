@@ -1,8 +1,5 @@
 import { DateTime, Option } from "effect"
 
-// Solid render paths run outside the Effect runtime, so they cannot yield
-// DateTime.now; DateTime.nowUnsafe is the sanctioned synchronous clock access.
-
 export function parseEpochMillis(isoDate: string): number {
   return Option.match(DateTime.make(isoDate), {
     onNone: () => Number.NaN,

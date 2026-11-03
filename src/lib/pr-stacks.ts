@@ -1,19 +1,12 @@
 import type { PR } from "@/types"
 
 export interface Stack<T> {
-  /** Top of the stack first, the pull request on the base branch last. */
   readonly members: readonly T[]
-  /** The branch the bottom pull request merges into; unknown in snapshots saved before 1.3. */
   readonly base: string | undefined
 }
 
 const branchKey = (repository: string, ref: string) => `${repository}\u0000${ref}`
 
-/**
- * Groups pull requests into stacks: one is stacked on another when its base branch is the other's
- * head branch in the same repository, as gh-stack, Graphite and spr build them. A pull request on no
- * other stays a stack of one. Members sit deepest first, newest first among siblings.
- */
 export function stacksOf<T extends { readonly pr: PR }>(items: readonly T[]): Stack<T>[] {
   const byHead = new Map<string, T>()
   for (const item of items) {
@@ -28,7 +21,6 @@ export function stacksOf<T extends { readonly pr: PR }>(items: readonly T[]): St
 
   const groups = new Map<T, Array<{ readonly item: T; readonly depth: number }>>()
   for (const item of items) {
-    // Walk down to the bottom of the stack; a cycle of base branches stops where it repeats.
     const path = new Set<T>([item])
     let bottom = item
     for (let parent = parentOf(bottom); parent && !path.has(parent); parent = parentOf(bottom)) {

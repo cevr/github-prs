@@ -7,13 +7,11 @@ import { STAGE, TONE_TEXT } from "./stage"
 interface PRSectionProps {
   readonly stage: Stage
   readonly count: number
-  /** Pull requests in the section that changed since the user last opened them. */
   readonly unseen: number
   readonly collapsed: boolean
   readonly onToggle: () => void
 }
 
-/** The pull requests at one stage that are in no stack, under a heading that folds them. */
 export function PRSection(props: ParentProps<PRSectionProps>) {
   const look = () => STAGE[props.stage]
   const Icon = dynamic(() => look().Icon)

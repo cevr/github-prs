@@ -33,7 +33,6 @@ export function getErrorMessage(error: unknown, fallback: string): string {
 
 const FULL_TIME = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" })
 
-/** The exact local date and time, for a tooltip beside a relative time. */
 export function formatFullTime(isoDate: string): string {
   const millis = parseEpochMillis(isoDate)
   if (Number.isNaN(millis)) return isoDate

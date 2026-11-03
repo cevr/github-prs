@@ -14,10 +14,6 @@ function useFold() {
   return useContext(FoldContext)
 }
 
-/**
- * A section the user folds from its heading. The owner keeps whether it is folded; folding is instant
- * because the user does it often.
- */
 function Root(props: ParentProps<{ readonly collapsed: boolean; readonly onToggle: () => void }>) {
   const fold: FoldValue = {
     id: createUniqueId(),
@@ -31,7 +27,6 @@ function Root(props: ParentProps<{ readonly collapsed: boolean; readonly onToggl
   )
 }
 
-/** The heading, which stays in view while its section scrolls past; the chevron ends it. */
 function Heading(props: ParentProps) {
   const fold = useFold()
   const expanded = () => {
@@ -59,7 +54,6 @@ function Heading(props: ParentProps) {
   )
 }
 
-/** A blue dot while the section is folded over activity the user has not seen. */
 function Unseen(props: { readonly count: number }) {
   const fold = useFold()
   return (

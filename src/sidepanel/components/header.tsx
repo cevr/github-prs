@@ -14,7 +14,6 @@ function syncLabel(sync: SyncState | undefined): string {
   return ""
 }
 
-/** The panel's title and the sync state under it; the actions it offers go in as children. */
 export function Header(props: ParentProps<{ readonly sync?: SyncState }>) {
   return (
     <header class="flex min-h-12 shrink-0 items-center justify-between gap-3 px-3.5 py-2">

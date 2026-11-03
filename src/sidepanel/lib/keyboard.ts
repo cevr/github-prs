@@ -1,6 +1,5 @@
 const STEPS: Readonly<Record<string, number>> = { ArrowDown: 1, j: 1, ArrowUp: -1, k: -1 }
 
-/** j/k and the arrow keys move between the visible pull requests; Enter opens one. */
 export function setupKeyboardNav() {
   const handler = (event: KeyboardEvent) => {
     const step = STEPS[event.key]

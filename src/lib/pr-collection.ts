@@ -13,21 +13,15 @@ export interface PRCollectionItem {
   readonly newComment: boolean
 }
 
-/** Pull requests stacked on one another, shown as their own section ahead of the stages. */
 export interface PRCollectionStack {
   readonly key: string
-  /** Top of the stack first. Each member keeps its own stage. */
   readonly items: readonly PRCollectionItem[]
-  /** The stack's first pull request, the one on the base branch: what the stack is about. */
   readonly first: PRCollectionItem
-  /** The branch the first pull request merges into. */
   readonly base: string | undefined
-  /** How many members sit at each stage, in the perspective's order: the stack at a glance. */
   readonly tally: readonly { readonly stage: Stage; readonly count: number }[]
   readonly unseen: number
 }
 
-/** The pull requests at one stage that are in no stack, newest activity first. */
 export interface PRCollectionSection {
   readonly stage: Stage
   readonly items: readonly PRCollectionItem[]
@@ -35,9 +29,7 @@ export interface PRCollectionSection {
 }
 
 export interface PRCollection {
-  /** Stacks, the one with the most urgent member first, then by newest activity. */
   readonly stacks: readonly PRCollectionStack[]
-  /** Only stages that hold pull requests outside stacks, in their perspective's order. */
   readonly sections: readonly PRCollectionSection[]
   readonly totalCount: number
   readonly unseenCount: number
@@ -45,11 +37,9 @@ export interface PRCollection {
 
 export interface PRCollectionLens {
   readonly perspective: Perspective
-  /** The user's GitHub login. */
   readonly viewer: string
 }
 
-/** Someone else commented after the user last opened the pull request; the user's own never count. */
 function hasNewComment(pr: PR, seen: Readonly<SeenPRs>, viewer: string): boolean {
   if (!pr.lastComment || sameLogin(pr.lastComment.by, viewer)) return false
   const seenAt = seen[pr.id.toString()]
@@ -107,7 +97,6 @@ export function createPRCollection(
     })
   }
 
-  // A stack's tally runs in the perspective's order, so its first stage is its most urgent.
   const urgency = (stack: PRCollectionStack) => {
     const stage = stack.tally[0]?.stage
     if (stage === undefined) return order.length

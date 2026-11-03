@@ -19,9 +19,6 @@ export class GitHubApiError extends Schema.TaggedError<GitHubApiError>()("GitHub
 const GRAPHQL_URL = "https://api.github.com/graphql"
 const SEARCH_PAGE_SIZE = 100
 
-// One search returns every open pull request with what its review status needs, instead of a search
-// followed by a timeline request per pull request. Nested lists keep their latest entries; the
-// viewer's own verdict is read on its own, so it never depends on how many others reviewed.
 const VERDICT_FRAGMENTS = `
 fragment Verdict on PullRequestReview { state submittedAt author { __typename login avatarUrl(size: 48) } }
 fragment Verdicts on PullRequestReviewConnection { pageInfo { hasNextPage endCursor } nodes { ...Verdict } }`
@@ -61,8 +58,6 @@ query PullRequests($query: String!, $after: String, $viewer: String!) {
 }
 ${VERDICT_FRAGMENTS}`
 
-// Standing verdicts past the first page, for a pull request with more than 100 reviewers: without
-// branch rules, one change request among them decides its stage.
 const MORE_VERDICTS_QUERY = `
 query MoreVerdicts($id: ID!, $after: String) {
   node(id: $id) { ... on PullRequest { latestOpinionatedReviews(first: 100, after: $after) { ...Verdicts } } }
@@ -78,7 +73,6 @@ const Actor = Schema.NullOr(
 )
 type Actor = typeof Actor.Type
 
-/** A GraphQL connection: GitHub may null the list, or an entry the token cannot read. */
 const connection = <S extends Schema.Top>(node: S) =>
   Schema.NullOr(Schema.Struct({ nodes: Schema.NullOr(Schema.Array(Schema.NullOr(node))) }))
 
@@ -87,7 +81,6 @@ const PageInfo = Schema.Struct({
   endCursor: Schema.NullOr(Schema.String),
 })
 
-/** A connection read page by page. */
 const pagedConnection = <S extends Schema.Top>(node: S) =>
   Schema.NullOr(
     Schema.Struct({ pageInfo: PageInfo, nodes: Schema.NullOr(Schema.Array(Schema.NullOr(node))) }),
@@ -121,7 +114,6 @@ const TimelineNode = Schema.Struct({
 
 const PullRequestNode = Schema.Struct({
   id: Schema.String,
-  // A 64-bit ID as a string; the older `databaseId` is deprecated because it can overflow to null.
   fullDatabaseId: Schema.NullOr(Schema.String),
   number: Schema.Number,
   title: Schema.String,
@@ -192,7 +184,6 @@ function decisionOf(node: PullRequestNode): PR["decision"] {
   return DECISIONS[node.reviewDecision]
 }
 
-/** A person rather than an app: bots review, comment and push constantly and decide nothing. */
 function person(actor: Actor | undefined): actor is NonNullable<Actor> {
   return actor !== null && actor !== undefined && actor.__typename !== "Bot"
 }
@@ -203,9 +194,6 @@ function avatarOf(login: string, avatarUrl: string | undefined): string {
 
 function reviewsOf(node: PullRequestNode, author: string, viewer: string): Review[] {
   const byReviewer = new Map<string, Review>()
-  // A reviewer's latest review may be a comment after an approval; the approval still stands, so
-  // opinionated reviews are read last and win. The viewer's own pair comes last: a dismissed
-  // verdict no longer stands, and a comment-only review then counts.
   const viewerOpinion = nodesOf(node.viewerOpinion).filter((review) => review.state !== "DISMISSED")
   const others = [...nodesOf(node.latestReviews), ...nodesOf(node.latestOpinionatedReviews)].filter(
     (review) => !review.author || !sameLogin(review.author.login, viewer),
@@ -214,7 +202,6 @@ function reviewsOf(node: PullRequestNode, author: string, viewer: string): Revie
   for (const review of reviews) {
     const verdict = VERDICTS[review.state]
     if (!verdict || !review.submittedAt || !person(review.author)) continue
-    // The author's replies to review threads are reviews too.
     if (sameLogin(review.author.login, author)) continue
     byReviewer.set(review.author.login.toLowerCase(), {
       reviewer: {
@@ -262,7 +249,6 @@ function lastCommentOf(node: PullRequestNode): Activity | undefined {
   return { by: comment.author.login, at: comment.createdAt }
 }
 
-/** A fork's branch is not one another pull request in this repository can be stacked on. */
 function headRefOf(node: PullRequestNode): string | undefined {
   if (node.isCrossRepository) return undefined
   return node.headRefName
@@ -347,8 +333,6 @@ export const GitHubPRSourceLive = Layer.effect(
       const body = yield* HttpClientResponse.schemaBodyJson(graphqlResponse(data))(response).pipe(
         Effect.mapError((cause) => requestError(`decode the answer to ${operation}`, cause)),
       )
-      // A partial answer would publish as complete and drop pull requests with their seen state, so
-      // any error fails the refresh and the saved snapshot stays.
       const message = body.errors?.map((error) => error.message).join(" ")
       if (!body.data || message) {
         return yield* new GitHubApiError({
@@ -368,7 +352,6 @@ export const GitHubPRSourceLive = Layer.effect(
         SearchData,
       ).pipe(Effect.map((data) => data.search))
 
-    /** Reads the standing verdicts GitHub left past the first page into the pull request. */
     const withAllVerdicts = Effect.fn("GitHubPRSource.withAllVerdicts")(function* (
       token: string,
       node: PullRequestNode,
@@ -431,7 +414,6 @@ export const GitHubPRSourceLive = Layer.effect(
     const fetch = Effect.fn("GitHubPRSource.fetch")(function* (settings: TrackerSettings) {
       const user = settings.username
       const open = "is:pr is:open"
-      // A review list never holds the user's own pull requests, even ones assigned to the user.
       const [authored, requested, assigned] = yield* Effect.all(
         [
           search(settings, `${open} author:${user}`),
