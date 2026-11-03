@@ -35,6 +35,7 @@
     "no-nested-ternary": "error",
     "complexity": ["error", 20],
     "effect/noAsyncFunction": "error",
+    "effect/noComments": "error",
     "effect/noDynamicImports": "error",
     "effect/noEffectBind": "error",
     "effect/noEffectDo": "error",
