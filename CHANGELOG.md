@@ -1,5 +1,11 @@
 # github-prs
 
+## 1.5.0
+
+### Minor Changes
+
+- [`67d6655`](https://github.com/cevr/github-prs/commit/67d6655175d992828e8ba86a89cf6d98dcc9d11c) Thanks [@cevr](https://github.com/cevr)! - Group pull requests by repository first. Each repository is now the outermost heading, the most recently active first, and holds its own stacks and status sections. Click a repository's heading to fold the whole repository; the panel remembers it, and a folded repository keeps a blue dot while it hides unseen activity. Sections now fold per repository. Folded sections and repositories from 1.4.0 start unfolded once.
+
 ## 1.4.0
 
 ### Minor Changes
