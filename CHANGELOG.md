@@ -1,5 +1,11 @@
 # github-prs
 
+## 1.4.0
+
+### Minor Changes
+
+- [`13b930a`](https://github.com/cevr/github-prs/commit/13b930addb79e45fe5b29260d6d6ac2c8c2f1fe2) Thanks [@cevr](https://github.com/cevr)! - Group each status section's pull requests by repository. Each repository has its own heading with its name and how many pull requests it holds; the most recently active repository comes first. Click a repository's heading to fold it; the panel remembers it, and a folded repository keeps a blue dot while it hides unseen activity.
+
 ## 1.3.1
 
 ### Patch Changes
