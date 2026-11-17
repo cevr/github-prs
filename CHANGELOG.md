@@ -1,5 +1,11 @@
 # github-prs
 
+## 1.3.1
+
+### Patch Changes
+
+- [`2f8d154`](https://github.com/cevr/github-prs/commit/2f8d15426c0b740a740dbb3261c19a9435413f54) Thanks [@cevr](https://github.com/cevr)! - Update Effect to 4.1.4 and Solid to 2.0.0-rc.23.
+
 ## 1.3.0
 
 ### Minor Changes
