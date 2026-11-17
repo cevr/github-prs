@@ -13,30 +13,25 @@ const foldStore = Effect.map(KeyValueStore.KeyValueStore, (store) =>
 const STACK = ":stack:"
 const REPOSITORY = ":repository:"
 
-function sectionKey(perspective: Perspective, stage: Stage): string {
-  return `${perspective}:${stage}`
+function repositoryKey(perspective: Perspective, repository: string): string {
+  return `${perspective}${REPOSITORY}${repository}`
+}
+
+function sectionKey(perspective: Perspective, repository: string, stage: Stage): string {
+  return `${repositoryKey(perspective, repository)}:${stage}`
 }
 
 function stackKey(perspective: Perspective, stack: string): string {
   return `${perspective}${STACK}${stack}`
 }
 
-function repositoryKey(perspective: Perspective, stage: Stage, repository: string): string {
-  return `${sectionKey(perspective, stage)}${REPOSITORY}${repository}`
-}
-
 function liveKeys(perspective: Perspective, collection: PRCollection): string[] {
-  return [
-    ...collection.stacks.map((stack) => stackKey(perspective, stack.key)),
-    ...collection.sections.flatMap((section) =>
-      section.repositories.map((group) =>
-        repositoryKey(perspective, section.stage, group.repository),
-      ),
-    ),
-  ]
+  return collection.repositories.flatMap((group) => [
+    repositoryKey(perspective, group.repository),
+    ...group.stacks.map((stack) => stackKey(perspective, stack.key)),
+    ...group.sections.map((section) => sectionKey(perspective, group.repository, section.stage)),
+  ])
 }
-
-const followsLiveEntries = (key: string) => key.includes(STACK) || key.includes(REPOSITORY)
 
 function read(): ReadonlySet<string> {
   return Effect.runSync(
@@ -76,25 +71,23 @@ export function createFolds() {
   }
 
   return {
-    isSectionFolded: (perspective: Perspective, stage: Stage) =>
-      folded().has(sectionKey(perspective, stage)),
-    toggleSection: (perspective: Perspective, stage: Stage) =>
-      toggle(sectionKey(perspective, stage)),
+    isRepositoryFolded: (perspective: Perspective, repository: string) =>
+      folded().has(repositoryKey(perspective, repository)),
+    toggleRepository: (perspective: Perspective, repository: string) =>
+      toggle(repositoryKey(perspective, repository)),
+    isSectionFolded: (perspective: Perspective, repository: string, stage: Stage) =>
+      folded().has(sectionKey(perspective, repository, stage)),
+    toggleSection: (perspective: Perspective, repository: string, stage: Stage) =>
+      toggle(sectionKey(perspective, repository, stage)),
     isStackFolded: (perspective: Perspective, stack: string) =>
       folded().has(stackKey(perspective, stack)),
     toggleStack: (perspective: Perspective, stack: string) => toggle(stackKey(perspective, stack)),
-    isRepositoryFolded: (perspective: Perspective, stage: Stage, repository: string) =>
-      folded().has(repositoryKey(perspective, stage, repository)),
-    toggleRepository: (perspective: Perspective, stage: Stage, repository: string) =>
-      toggle(repositoryKey(perspective, stage, repository)),
     keepLive: (collections: Readonly<Record<Perspective, PRCollection>>) => {
       const keep = new Set([
         ...liveKeys("authored", collections.authored),
         ...liveKeys("reviewing", collections.reviewing),
       ])
-      const next = new Set(
-        Array.from(latestAheadOfSignal).filter((key) => !followsLiveEntries(key) || keep.has(key)),
-      )
+      const next = new Set(Array.from(latestAheadOfSignal).filter((key) => keep.has(key)))
       if (next.size !== latestAheadOfSignal.size) commit(next)
     },
   }

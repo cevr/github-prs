@@ -18,14 +18,14 @@ export function PRSection(props: ParentProps<PRSectionProps>) {
 
   return (
     <FoldSection.Root collapsed={props.collapsed} onToggle={props.onToggle}>
-      <FoldSection.Heading>
+      <FoldSection.Subheading>
         <Icon class={["size-3.5 shrink-0", TONE_TEXT[look().tone]]} />
         {look().title}
         <span class="font-normal text-fg-subtle tabular-nums">{props.count}</span>
         <FoldSection.Unseen count={props.unseen} />
-      </FoldSection.Heading>
+      </FoldSection.Subheading>
       <FoldSection.Body>
-        <div class="pb-1">{props.children}</div>
+        <ul class="m-0 list-none p-0 pb-1">{props.children}</ul>
       </FoldSection.Body>
     </FoldSection.Root>
   )

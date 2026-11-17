@@ -57,16 +57,18 @@ function Toggle(props: ParentProps<{ readonly class: string }>) {
 
 function Heading(props: ParentProps) {
   return (
-    <h2 class="sticky top-0 z-10 m-0 bg-canvas/90 backdrop-blur-sm">
-      <Toggle class="min-h-8 px-3 py-1.5 font-semibold text-fg">{props.children}</Toggle>
+    <h2 class="sticky top-0 z-20 m-0 border-b border-line-muted bg-surface/90 backdrop-blur-sm">
+      <Toggle class="min-h-9 px-3 py-2 text-[13px] font-semibold text-fg-strong">
+        {props.children}
+      </Toggle>
     </h2>
   )
 }
 
 function Subheading(props: ParentProps) {
   return (
-    <h3 class="sticky top-8 z-[9] m-0 bg-canvas/90 backdrop-blur-sm">
-      <Toggle class="min-h-7 py-1 pr-3 pl-5 font-medium text-fg-muted">{props.children}</Toggle>
+    <h3 class="sticky top-9 z-10 m-0 bg-canvas/90 backdrop-blur-sm">
+      <Toggle class="min-h-8 px-3 py-1.5 font-semibold text-fg">{props.children}</Toggle>
     </h3>
   )
 }

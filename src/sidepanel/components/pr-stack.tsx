@@ -46,7 +46,6 @@ interface PRStackProps {
 
 export function PRStack(props: PRStackProps) {
   const first = () => props.stack.first.pr
-  const repository = () => first().repository.split("/").at(-1) ?? first().repository
   const size = () => `${props.stack.items.length} PRs`
   const label = () => {
     if (!props.stack.base) return `Stack of ${props.stack.items.length}`
@@ -55,7 +54,7 @@ export function PRStack(props: PRStackProps) {
 
   return (
     <FoldSection.Root collapsed={props.collapsed} onToggle={props.onToggle}>
-      <FoldSection.Heading>
+      <FoldSection.Subheading>
         <StackIcon class="size-3.5 shrink-0 mt-px self-start text-fg-muted" />
         <span class="grid min-w-0 flex-1 gap-0.5">
           <span class="flex min-w-0 items-center gap-1.5">
@@ -64,11 +63,7 @@ export function PRStack(props: PRStackProps) {
           </span>
           <span class="flex min-w-0 items-center gap-2 text-[11px] font-normal text-fg-muted">
             <span class="flex min-w-0 items-center">
-              <span title={first().repository} class="min-w-0 truncate">
-                {repository()}
-              </span>
-              <span class="mx-1 shrink-0 text-fg-subtle">·</span>
-              <span class="max-w-[70%] shrink-0 truncate">
+              <span class="min-w-0 truncate">
                 <span class="tabular-nums">{size()}</span>
                 <Show when={props.stack.base}>
                   {(base) => (
@@ -87,7 +82,7 @@ export function PRStack(props: PRStackProps) {
             </span>
           </span>
         </span>
-      </FoldSection.Heading>
+      </FoldSection.Subheading>
       <FoldSection.Body>
         <ol aria-label={label()} class="m-0 list-none p-0 pb-1 pl-3">
           <For each={props.stack.items} keyed={(item) => item.pr.id}>

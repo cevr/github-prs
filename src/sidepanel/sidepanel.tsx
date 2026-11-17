@@ -81,54 +81,54 @@ function PRList(props: {
 
   return (
     <Show
-      when={props.collection.stacks.length > 0 || props.collection.sections.length > 0}
+      when={props.collection.repositories.length > 0}
       fallback={<EmptyState perspective={props.perspective} />}
     >
-      <For each={props.collection.stacks} keyed={(stack) => stack.key}>
-        {(stack) => (
-          <PRStack
-            stack={stack()}
-            collapsed={props.folds.isStackFolded(props.perspective, stack().key)}
-            onToggle={() => props.folds.toggleStack(props.perspective, stack().key)}
-            row={row}
-          />
-        )}
-      </For>
-      <For each={props.collection.sections} keyed={(section) => section.stage}>
-        {(section) => (
-          <PRSection
-            stage={section().stage}
-            count={section().items.length}
-            unseen={section().unseen}
-            collapsed={props.folds.isSectionFolded(props.perspective, section().stage)}
-            onToggle={() => props.folds.toggleSection(props.perspective, section().stage)}
+      <For each={props.collection.repositories} keyed={(group) => group.repository}>
+        {(group) => (
+          <PRRepository
+            repository={group().repository}
+            count={group().count}
+            unseen={group().unseen}
+            collapsed={props.folds.isRepositoryFolded(props.perspective, group().repository)}
+            onToggle={() => props.folds.toggleRepository(props.perspective, group().repository)}
           >
-            <For each={section().repositories} keyed={(group) => group.repository}>
-              {(group) => (
-                <PRRepository
-                  repository={group().repository}
-                  count={group().items.length}
-                  unseen={group().unseen}
-                  collapsed={props.folds.isRepositoryFolded(
+            <For each={group().stacks} keyed={(stack) => stack.key}>
+              {(stack) => (
+                <PRStack
+                  stack={stack()}
+                  collapsed={props.folds.isStackFolded(props.perspective, stack().key)}
+                  onToggle={() => props.folds.toggleStack(props.perspective, stack().key)}
+                  row={row}
+                />
+              )}
+            </For>
+            <For each={group().sections} keyed={(section) => section.stage}>
+              {(section) => (
+                <PRSection
+                  stage={section().stage}
+                  count={section().items.length}
+                  unseen={section().unseen}
+                  collapsed={props.folds.isSectionFolded(
                     props.perspective,
-                    section().stage,
                     group().repository,
+                    section().stage,
                   )}
                   onToggle={() =>
-                    props.folds.toggleRepository(
+                    props.folds.toggleSection(
                       props.perspective,
-                      section().stage,
                       group().repository,
+                      section().stage,
                     )
                   }
                 >
-                  <For each={group().items} keyed={(item) => item.pr.id}>
+                  <For each={section().items} keyed={(item) => item.pr.id}>
                     {(item) => <li>{row(item())}</li>}
                   </For>
-                </PRRepository>
+                </PRSection>
               )}
             </For>
-          </PRSection>
+          </PRRepository>
         )}
       </For>
     </Show>

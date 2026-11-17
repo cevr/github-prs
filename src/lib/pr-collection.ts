@@ -22,22 +22,22 @@ export interface PRCollectionStack {
   readonly unseen: number
 }
 
-export interface PRCollectionRepository {
-  readonly repository: string
+export interface PRCollectionSection {
+  readonly stage: Stage
   readonly items: readonly PRCollectionItem[]
   readonly unseen: number
 }
 
-export interface PRCollectionSection {
-  readonly stage: Stage
-  readonly items: readonly PRCollectionItem[]
-  readonly repositories: readonly PRCollectionRepository[]
+export interface PRCollectionRepository {
+  readonly repository: string
+  readonly stacks: readonly PRCollectionStack[]
+  readonly sections: readonly PRCollectionSection[]
+  readonly count: number
   readonly unseen: number
 }
 
 export interface PRCollection {
-  readonly stacks: readonly PRCollectionStack[]
-  readonly sections: readonly PRCollectionSection[]
+  readonly repositories: readonly PRCollectionRepository[]
   readonly totalCount: number
   readonly unseenCount: number
 }
@@ -66,37 +66,11 @@ const activity = (item: PRCollectionItem) => parseEpochMillis(item.pr.updatedAt)
 const newest = (items: readonly PRCollectionItem[]) => Math.max(...items.map(activity))
 const unseenIn = (items: readonly PRCollectionItem[]) => items.filter((item) => item.unseen).length
 
-function repositoriesOf(newestFirst: readonly PRCollectionItem[]): PRCollectionRepository[] {
-  const byRepository = new Map<string, PRCollectionItem[]>()
-  for (const item of newestFirst) {
-    const group = byRepository.get(item.pr.repository)
-    if (group) group.push(item)
-    else byRepository.set(item.pr.repository, [item])
-  }
-  return Array.from(byRepository, ([repository, items]) => ({
-    repository,
-    items,
-    unseen: unseenIn(items),
-  }))
-}
-
-export function createPRCollection(
-  prs: readonly PR[],
-  seen: Readonly<SeenPRs>,
-  lens: PRCollectionLens,
-): PRCollection {
-  const order: readonly Stage[] = STAGES[lens.perspective]
-  const items = prs.map((pr): PRCollectionItem => {
-    let stage: Stage = authoredStage(pr)
-    if (lens.perspective === "reviewing") stage = reviewingStage(pr, lens.viewer)
-    return {
-      pr,
-      stage,
-      unseen: isUnseen(pr, seen),
-      newComment: hasNewComment(pr, seen, lens.viewer),
-    }
-  })
-
+function repositoryOf(
+  repository: string,
+  items: readonly PRCollectionItem[],
+  order: readonly Stage[],
+): PRCollectionRepository {
   const stacks: PRCollectionStack[] = []
   const byStage = new Map<Stage, PRCollectionItem[]>()
   for (const stack of stacksOf(items)) {
@@ -128,19 +102,54 @@ export function createPRCollection(
   for (const stage of order) {
     const singles = byStage.get(stage)
     if (!singles) continue
-    const newestFirst = singles.toSorted((a, b) => activity(b) - activity(a))
     sections.push({
       stage,
-      items: newestFirst,
-      repositories: repositoriesOf(newestFirst),
+      items: singles.toSorted((a, b) => activity(b) - activity(a)),
       unseen: unseenIn(singles),
     })
   }
 
   return {
+    repository,
     stacks: stacks.toSorted((a, b) => urgency(a) - urgency(b) || newest(b.items) - newest(a.items)),
     sections,
+    count: items.length,
+    unseen: unseenIn(items),
+  }
+}
+
+export function createPRCollection(
+  prs: readonly PR[],
+  seen: Readonly<SeenPRs>,
+  lens: PRCollectionLens,
+): PRCollection {
+  const order: readonly Stage[] = STAGES[lens.perspective]
+  const items = prs.map((pr): PRCollectionItem => {
+    let stage: Stage = authoredStage(pr)
+    if (lens.perspective === "reviewing") stage = reviewingStage(pr, lens.viewer)
+    return {
+      pr,
+      stage,
+      unseen: isUnseen(pr, seen),
+      newComment: hasNewComment(pr, seen, lens.viewer),
+    }
+  })
+
+  const byRepository = new Map<string, PRCollectionItem[]>()
+  for (const item of items) {
+    const group = byRepository.get(item.pr.repository)
+    if (group) group.push(item)
+    else byRepository.set(item.pr.repository, [item])
+  }
+  const mostRecentFirst = Array.from(byRepository).toSorted(
+    ([a, aItems], [b, bItems]) => newest(bItems) - newest(aItems) || a.localeCompare(b),
+  )
+
+  return {
+    repositories: mostRecentFirst.map(([repository, members]) =>
+      repositoryOf(repository, members, order),
+    ),
     totalCount: prs.length,
-    unseenCount: items.filter((item) => item.unseen).length,
+    unseenCount: unseenIn(items),
   }
 }

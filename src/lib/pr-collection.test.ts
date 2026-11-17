@@ -6,13 +6,22 @@ const T = "2026-07-16T10:00:00.000Z"
 
 type Collection = ReturnType<typeof createPRCollection>
 
+const only = (collection: Collection) => {
+  expect(collection.repositories).toHaveLength(1)
+  const [repository] = collection.repositories
+  return { stacks: repository?.stacks ?? [], sections: repository?.sections ?? [] }
+}
+
 const stagesOf = (collection: Collection) =>
-  collection.sections.map((section) => [section.stage, section.items.map((item) => item.pr.id)])
+  only(collection).sections.map((section) => [
+    section.stage,
+    section.items.map((item) => item.pr.id),
+  ])
 
 const stackIds = (collection: Collection) =>
-  collection.stacks.map((stack) => stack.items.map((item) => item.pr.id))
+  only(collection).stacks.map((stack) => stack.items.map((item) => item.pr.id))
 
-const firstItem = (collection: Collection) => collection.sections[0]?.items[0]
+const firstItem = (collection: Collection) => only(collection).sections[0]?.items[0]
 
 describe("PR collection", () => {
   test("orders the user's pull requests by what waits on them, then by recent activity", () => {
@@ -122,7 +131,7 @@ describe("PR collection", () => {
 
     expect(stackIds(collection)).toEqual([[3, 2, 1]])
     expect(stagesOf(collection)).toEqual([["approved", [4]]])
-    const [stack] = collection.stacks
+    const [stack] = only(collection).stacks
     expect(stack?.first.pr.id).toBe(1)
     expect(stack?.base).toBe("main")
     expect(stack?.items.map((item) => item.stage)).toEqual([
@@ -165,7 +174,7 @@ describe("PR collection", () => {
       [2, 1],
       [6, 5],
     ])
-    expect(collection.sections).toEqual([])
+    expect(only(collection).sections).toEqual([])
   })
 
   test("stacks only within one repository", () => {
@@ -177,7 +186,7 @@ describe("PR collection", () => {
 
     const collection = createPRCollection(input, {}, { perspective: "authored", viewer: "cevr" })
 
-    expect(stagesOf(collection)).toEqual([["awaiting-review", [1, 2, 3]]])
+    expect(collection.repositories.flatMap((group) => group.stacks)).toEqual([])
   })
 
   test("keeps branches off one base together, deepest first", () => {
@@ -191,32 +200,56 @@ describe("PR collection", () => {
     const collection = createPRCollection(input, {}, { perspective: "authored", viewer: "cevr" })
 
     expect(stackIds(collection)).toEqual([[4, 3, 2, 1]])
-    expect(collection.sections).toEqual([])
+    expect(only(collection).sections).toEqual([])
   })
 
-  test("groups each stage's pull requests by repository, the most recently active first", () => {
+  test("groups pull requests by repository first, the most recently active first", () => {
+    const branch = (id: number, base: string, overrides: Parameters<typeof pr>[0] = {}) =>
+      pr({ id, repository: "cevr/okra", baseRef: base, headRef: `stack-${id}`, ...overrides })
     const input = [
-      pr({ id: 1, repository: "cevr/okra", updatedAt: "2026-07-16T09:00:00.000Z" }),
-      pr({ id: 2, repository: "cevr/rift", updatedAt: "2026-07-16T11:00:00.000Z" }),
-      pr({ id: 3, repository: "cevr/okra", updatedAt: "2026-07-16T10:00:00.000Z" }),
-      pr({ id: 4, repository: "cevr/okra", decision: "approved" }),
+      branch(1, "main", { updatedAt: "2026-07-16T08:00:00.000Z" }),
+      branch(2, "stack-1", { updatedAt: "2026-07-16T09:00:00.000Z" }),
+      pr({ id: 3, repository: "cevr/okra", decision: "approved", updatedAt: T }),
+      pr({ id: 4, repository: "cevr/okra", updatedAt: "2026-07-16T07:00:00.000Z" }),
+      pr({ id: 5, repository: "cevr/rift", updatedAt: "2026-07-16T11:00:00.000Z" }),
+      pr({ id: 6, repository: "cevr/rift", draft: true, updatedAt: T }),
     ]
-    const seen = { "3": "2026-07-16T12:00:00.000Z" }
+    const seen = { "6": "2026-07-16T12:00:00.000Z" }
 
     const collection = createPRCollection(input, seen, { perspective: "authored", viewer: "cevr" })
 
-    const repositoriesOf = (stage: string) =>
-      collection.sections
-        .find((section) => section.stage === stage)
-        ?.repositories.map((group) => [
-          group.repository,
-          group.items.map((item) => item.pr.id),
-          group.unseen,
-        ])
-    expect(repositoriesOf("awaiting-review")).toEqual([
-      ["cevr/rift", [2], 1],
-      ["cevr/okra", [3, 1], 1],
+    expect(
+      collection.repositories.map((group) => ({
+        repository: group.repository,
+        count: group.count,
+        unseen: group.unseen,
+        stacks: group.stacks.map((stack) => stack.items.map((item) => item.pr.id)),
+        sections: group.sections.map((section) => [
+          section.stage,
+          section.items.map((item) => item.pr.id),
+        ]),
+      })),
+    ).toEqual([
+      {
+        repository: "cevr/rift",
+        count: 2,
+        unseen: 1,
+        stacks: [],
+        sections: [
+          ["awaiting-review", [5]],
+          ["draft", [6]],
+        ],
+      },
+      {
+        repository: "cevr/okra",
+        count: 4,
+        unseen: 4,
+        stacks: [[2, 1]],
+        sections: [
+          ["approved", [3]],
+          ["awaiting-review", [4]],
+        ],
+      },
     ])
-    expect(repositoriesOf("approved")).toEqual([["cevr/okra", [4], 1]])
   })
 })

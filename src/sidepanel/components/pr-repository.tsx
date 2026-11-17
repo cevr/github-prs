@@ -16,17 +16,17 @@ export function PRRepository(props: ParentProps<PRRepositoryProps>) {
 
   return (
     <FoldSection.Root collapsed={props.collapsed} onToggle={props.onToggle}>
-      <FoldSection.Subheading>
-        <RepoIcon class="size-3 shrink-0 text-fg-subtle" />
+      <FoldSection.Heading>
+        <RepoIcon class="size-3.5 shrink-0 text-fg-muted" />
         <span title={props.repository} class="min-w-0 truncate">
-          <span class="font-normal text-fg-subtle">{owner()}/</span>
+          <span class="font-normal text-fg-muted">{owner()}/</span>
           {name()}
         </span>
         <span class="font-normal text-fg-subtle tabular-nums">{props.count}</span>
         <FoldSection.Unseen count={props.unseen} />
-      </FoldSection.Subheading>
+      </FoldSection.Heading>
       <FoldSection.Body>
-        <ul class="m-0 list-none p-0">{props.children}</ul>
+        <div class="pb-2">{props.children}</div>
       </FoldSection.Body>
     </FoldSection.Root>
   )

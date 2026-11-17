@@ -27,14 +27,14 @@ src/
 ├── settings/                # Tracker Settings storage and validation
 ├── lib/
 │   ├── pr-status.ts         # Stages per perspective and their order
-│   ├── pr-collection.ts     # PRs → stacks, then sections by stage of the rest, by repository, newest first
+│   ├── pr-collection.ts     # PRs → repositories (newest first), each: stacks, then sections by stage
 │   ├── pr-stacks.ts         # Stacks: base branch = another's head branch, same repository
 │   ├── seen.ts              # The unseen rule shared by UI, badge and sync
 │   └── use-pr-snapshot.ts   # Solid model of the PR Snapshot for the side panel
 ├── sidepanel/
 │   ├── sidepanel.tsx        # Composition: TrackerProvider → Header, Tabs, PRList
 │   ├── tracker.tsx          # Context: state (snapshot) + actions (refresh, markSeen, openSettings)
-│   ├── lib/folds.ts         # Folded sections, stacks and repository groups, in the panel's localStorage
+│   ├── lib/folds.ts         # Folded repositories, sections and stacks, in the panel's localStorage
 │   └── components/          # Tabs.*, PRRow.* (AuthoredRow, ReviewRow), FoldSection.*, PRSection, PRRepository, PRStack, Avatar, icons
 ├── options/                 # Settings page
 └── testing/pr-fixture.ts    # PR builders for tests
@@ -44,7 +44,7 @@ store/fixtures/chrome-mock.js  # Chrome stand-in for rendering pages outside Chr
 ## Architecture
 
 - **Background** polls on an alarm and on demand. `GitHubPRSource` runs three searches: authored, review-requested and assigned, both review searches excluding the user's own pull requests.
-- **PR Collection** sorts one perspective into stages (`lib/pr-status.ts`); the side panel renders each stack as its own section first (heading: first pull request's title, repository, size, base branch, count per stage), then a section per stage for the rest, its pull requests grouped by repository. All three fold through `FoldSection.*`.
+- **PR Collection** sorts one perspective into stages (`lib/pr-status.ts`); the side panel renders a group per repository, the most recently active first; inside it, each stack as its own section first (heading: first pull request's title, size, base branch, count per stage), then a section per stage for the rest. All three fold through `FoldSection.*`.
 - **Side panel** refreshes once each time it opens (`use-pr-snapshot.ts`), showing the saved snapshot meanwhile.
 - **Side panel** parts read state and actions from `TrackerContext`; compound parts (`Tabs.*`, `PRRow.*`) compose the two row variants instead of boolean props.
 - **Message actions**: `checkNow`, `markPRViewed`, `updateSettings`, `prSnapshotChanged`, `setupNeeded`
