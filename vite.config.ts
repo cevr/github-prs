@@ -9,17 +9,17 @@ export default defineConfig({
   base: "",
   resolve: {
     alias: {
-      "@": resolve(__dirname, "src"),
+      "@": resolve(import.meta.dirname, "src"),
     },
   },
   build: {
-    outDir: resolve(__dirname, "dist"),
+    outDir: resolve(import.meta.dirname, "dist"),
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        sidepanel: resolve(__dirname, "src/sidepanel/sidepanel.html"),
-        options: resolve(__dirname, "src/options/options.html"),
-        background: resolve(__dirname, "src/background.ts"),
+        sidepanel: resolve(import.meta.dirname, "src/sidepanel/sidepanel.html"),
+        options: resolve(import.meta.dirname, "src/options/options.html"),
+        background: resolve(import.meta.dirname, "src/background.ts"),
       },
       output: {
         entryFileNames: (chunkInfo) => {
