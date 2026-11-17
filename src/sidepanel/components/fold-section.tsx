@@ -27,30 +27,47 @@ function Root(props: ParentProps<{ readonly collapsed: boolean; readonly onToggl
   )
 }
 
-function Heading(props: ParentProps) {
+function Toggle(props: ParentProps<{ readonly class: string }>) {
   const fold = useFold()
   const expanded = () => {
     if (fold.collapsed()) return "false"
     return "true"
   }
   return (
+    <button
+      type="button"
+      aria-expanded={expanded()}
+      aria-controls={fold.id}
+      onClick={() => fold.toggle()}
+      class={[
+        "group/heading flex w-full items-center gap-1.5 border-0 bg-transparent text-left text-xs transition-[background-color] duration-100 ease-out hover:bg-surface focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+        props.class,
+      ]}
+    >
+      {props.children}
+      <ChevronDownIcon
+        class={[
+          "ml-auto size-3.5 shrink-0 text-fg-subtle opacity-0 group-hover/heading:opacity-100 group-focus-visible/heading:opacity-100",
+          { "-rotate-90 opacity-100": fold.collapsed() },
+        ]}
+      />
+    </button>
+  )
+}
+
+function Heading(props: ParentProps) {
+  return (
     <h2 class="sticky top-0 z-10 m-0 bg-canvas/90 backdrop-blur-sm">
-      <button
-        type="button"
-        aria-expanded={expanded()}
-        aria-controls={fold.id}
-        onClick={() => fold.toggle()}
-        class="group/heading flex min-h-8 w-full items-center gap-1.5 border-0 bg-transparent px-3 py-1.5 text-left text-xs font-semibold text-fg transition-[background-color] duration-100 ease-out hover:bg-surface focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
-      >
-        {props.children}
-        <ChevronDownIcon
-          class={[
-            "ml-auto size-3.5 shrink-0 text-fg-subtle opacity-0 group-hover/heading:opacity-100 group-focus-visible/heading:opacity-100",
-            { "-rotate-90 opacity-100": fold.collapsed() },
-          ]}
-        />
-      </button>
+      <Toggle class="min-h-8 px-3 py-1.5 font-semibold text-fg">{props.children}</Toggle>
     </h2>
+  )
+}
+
+function Subheading(props: ParentProps) {
+  return (
+    <h3 class="sticky top-8 z-[9] m-0 bg-canvas/90 backdrop-blur-sm">
+      <Toggle class="min-h-7 py-1 pr-3 pl-5 font-medium text-fg-muted">{props.children}</Toggle>
+    </h3>
   )
 }
 
@@ -73,4 +90,4 @@ function Body(props: ParentProps) {
   )
 }
 
-export const FoldSection = { Root, Heading, Unseen, Body }
+export const FoldSection = { Root, Heading, Subheading, Unseen, Body }

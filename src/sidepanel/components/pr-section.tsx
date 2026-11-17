@@ -25,7 +25,7 @@ export function PRSection(props: ParentProps<PRSectionProps>) {
         <FoldSection.Unseen count={props.unseen} />
       </FoldSection.Heading>
       <FoldSection.Body>
-        <ul class="m-0 list-none p-0 pb-1">{props.children}</ul>
+        <div class="pb-1">{props.children}</div>
       </FoldSection.Body>
     </FoldSection.Root>
   )

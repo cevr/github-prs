@@ -22,9 +22,16 @@ export interface PRCollectionStack {
   readonly unseen: number
 }
 
+export interface PRCollectionRepository {
+  readonly repository: string
+  readonly items: readonly PRCollectionItem[]
+  readonly unseen: number
+}
+
 export interface PRCollectionSection {
   readonly stage: Stage
   readonly items: readonly PRCollectionItem[]
+  readonly repositories: readonly PRCollectionRepository[]
   readonly unseen: number
 }
 
@@ -57,6 +64,21 @@ function tallyOf(items: readonly PRCollectionItem[], order: readonly Stage[]) {
 
 const activity = (item: PRCollectionItem) => parseEpochMillis(item.pr.updatedAt)
 const newest = (items: readonly PRCollectionItem[]) => Math.max(...items.map(activity))
+const unseenIn = (items: readonly PRCollectionItem[]) => items.filter((item) => item.unseen).length
+
+function repositoriesOf(newestFirst: readonly PRCollectionItem[]): PRCollectionRepository[] {
+  const byRepository = new Map<string, PRCollectionItem[]>()
+  for (const item of newestFirst) {
+    const group = byRepository.get(item.pr.repository)
+    if (group) group.push(item)
+    else byRepository.set(item.pr.repository, [item])
+  }
+  return Array.from(byRepository, ([repository, items]) => ({
+    repository,
+    items,
+    unseen: unseenIn(items),
+  }))
+}
 
 export function createPRCollection(
   prs: readonly PR[],
@@ -106,10 +128,12 @@ export function createPRCollection(
   for (const stage of order) {
     const singles = byStage.get(stage)
     if (!singles) continue
+    const newestFirst = singles.toSorted((a, b) => activity(b) - activity(a))
     sections.push({
       stage,
-      items: singles.toSorted((a, b) => activity(b) - activity(a)),
-      unseen: singles.filter((item) => item.unseen).length,
+      items: newestFirst,
+      repositories: repositoriesOf(newestFirst),
+      unseen: unseenIn(singles),
     })
   }
 

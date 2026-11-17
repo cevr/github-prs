@@ -9,7 +9,7 @@ A coherent view of tracked pull requests, their seen state, and the latest synch
 _Avoid_: PR data, cache
 
 **PR Collection**:
-One perspective's pull requests in sections by stage, the user's next move first and newest activity first within a stage, including which entries need attention.
+One perspective's pull requests in sections by stage, the user's next move first; within a stage, grouped by repository, the most recently active repository first and newest activity first within it, including which entries need attention.
 
 **Stack**:
 Pull requests in one repository where each one's base branch is another's head branch, as gh-stack, Graphite and spr build them. A Stack is its own section in a PR Collection, ahead of the Stage sections, its members top first; each member keeps its own Stage. Its heading leads with its first pull request, the one on the base branch, names the base branch and counts the members at each Stage. Stacks with a more urgent member come first.

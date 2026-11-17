@@ -18,6 +18,7 @@ import type { CachedPRSnapshot } from "@/lib/use-pr-snapshot"
 import type { SyncState } from "@/types"
 import { EmptyState } from "./components/empty-state"
 import { Header, RefreshButton, SettingsButton } from "./components/header"
+import { PRRepository } from "./components/pr-repository"
 import { PRSection } from "./components/pr-section"
 import { PRStack } from "./components/pr-stack"
 import { AuthoredRow, ReviewRow } from "./components/pr-row"
@@ -102,8 +103,30 @@ function PRList(props: {
             collapsed={props.folds.isSectionFolded(props.perspective, section().stage)}
             onToggle={() => props.folds.toggleSection(props.perspective, section().stage)}
           >
-            <For each={section().items} keyed={(item) => item.pr.id}>
-              {(item) => <li>{row(item())}</li>}
+            <For each={section().repositories} keyed={(group) => group.repository}>
+              {(group) => (
+                <PRRepository
+                  repository={group().repository}
+                  count={group().items.length}
+                  unseen={group().unseen}
+                  collapsed={props.folds.isRepositoryFolded(
+                    props.perspective,
+                    section().stage,
+                    group().repository,
+                  )}
+                  onToggle={() =>
+                    props.folds.toggleRepository(
+                      props.perspective,
+                      section().stage,
+                      group().repository,
+                    )
+                  }
+                >
+                  <For each={group().items} keyed={(item) => item.pr.id}>
+                    {(item) => <li>{row(item())}</li>}
+                  </For>
+                </PRRepository>
+              )}
             </For>
           </PRSection>
         )}
@@ -122,13 +145,7 @@ function Tracker(props: { readonly snapshot: CachedPRSnapshot; readonly sync: Sy
       reviewing: createPRCollection(prs.reviewing, seen, { perspective: "reviewing", viewer }),
     }
   })
-  createEffect(
-    () =>
-      PERSPECTIVES.flatMap((tab) =>
-        collections()[tab].stacks.map((stack) => ({ perspective: tab, stack: stack.key })),
-      ),
-    (live) => folds.keepStacks(live),
-  )
+  createEffect(collections, (live) => folds.keepLive(live))
   const choose = (value: string) => {
     const next = PERSPECTIVES.find((candidate) => candidate === value)
     if (next) setPerspective(next)

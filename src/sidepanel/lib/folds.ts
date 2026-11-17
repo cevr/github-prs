@@ -1,6 +1,7 @@
 import { Effect, Option, Schema } from "effect"
 import { KeyValueStore } from "effect/persistence"
 import { createSignal } from "solid-js"
+import type { PRCollection } from "@/lib/pr-collection"
 import type { Perspective, Stage } from "@/lib/pr-status"
 
 const FOLDS_KEY_FROM_BEFORE_STACK_FOLDS = "collapsedSections"
@@ -10,6 +11,7 @@ const foldStore = Effect.map(KeyValueStore.KeyValueStore, (store) =>
 ).pipe(Effect.provide(KeyValueStore.layerStorage(() => localStorage)))
 
 const STACK = ":stack:"
+const REPOSITORY = ":repository:"
 
 function sectionKey(perspective: Perspective, stage: Stage): string {
   return `${perspective}:${stage}`
@@ -18,6 +20,23 @@ function sectionKey(perspective: Perspective, stage: Stage): string {
 function stackKey(perspective: Perspective, stack: string): string {
   return `${perspective}${STACK}${stack}`
 }
+
+function repositoryKey(perspective: Perspective, stage: Stage, repository: string): string {
+  return `${sectionKey(perspective, stage)}${REPOSITORY}${repository}`
+}
+
+function liveKeys(perspective: Perspective, collection: PRCollection): string[] {
+  return [
+    ...collection.stacks.map((stack) => stackKey(perspective, stack.key)),
+    ...collection.sections.flatMap((section) =>
+      section.repositories.map((group) =>
+        repositoryKey(perspective, section.stage, group.repository),
+      ),
+    ),
+  ]
+}
+
+const followsLiveEntries = (key: string) => key.includes(STACK) || key.includes(REPOSITORY)
 
 function read(): ReadonlySet<string> {
   return Effect.runSync(
@@ -64,12 +83,17 @@ export function createFolds() {
     isStackFolded: (perspective: Perspective, stack: string) =>
       folded().has(stackKey(perspective, stack)),
     toggleStack: (perspective: Perspective, stack: string) => toggle(stackKey(perspective, stack)),
-    keepStacks: (
-      live: readonly { readonly perspective: Perspective; readonly stack: string }[],
-    ) => {
-      const keep = new Set(live.map((entry) => stackKey(entry.perspective, entry.stack)))
+    isRepositoryFolded: (perspective: Perspective, stage: Stage, repository: string) =>
+      folded().has(repositoryKey(perspective, stage, repository)),
+    toggleRepository: (perspective: Perspective, stage: Stage, repository: string) =>
+      toggle(repositoryKey(perspective, stage, repository)),
+    keepLive: (collections: Readonly<Record<Perspective, PRCollection>>) => {
+      const keep = new Set([
+        ...liveKeys("authored", collections.authored),
+        ...liveKeys("reviewing", collections.reviewing),
+      ])
       const next = new Set(
-        Array.from(latestAheadOfSignal).filter((key) => !key.includes(STACK) || keep.has(key)),
+        Array.from(latestAheadOfSignal).filter((key) => !followsLiveEntries(key) || keep.has(key)),
       )
       if (next.size !== latestAheadOfSignal.size) commit(next)
     },

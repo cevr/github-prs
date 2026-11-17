@@ -193,4 +193,30 @@ describe("PR collection", () => {
     expect(stackIds(collection)).toEqual([[4, 3, 2, 1]])
     expect(collection.sections).toEqual([])
   })
+
+  test("groups each stage's pull requests by repository, the most recently active first", () => {
+    const input = [
+      pr({ id: 1, repository: "cevr/okra", updatedAt: "2026-07-16T09:00:00.000Z" }),
+      pr({ id: 2, repository: "cevr/rift", updatedAt: "2026-07-16T11:00:00.000Z" }),
+      pr({ id: 3, repository: "cevr/okra", updatedAt: "2026-07-16T10:00:00.000Z" }),
+      pr({ id: 4, repository: "cevr/okra", decision: "approved" }),
+    ]
+    const seen = { "3": "2026-07-16T12:00:00.000Z" }
+
+    const collection = createPRCollection(input, seen, { perspective: "authored", viewer: "cevr" })
+
+    const repositoriesOf = (stage: string) =>
+      collection.sections
+        .find((section) => section.stage === stage)
+        ?.repositories.map((group) => [
+          group.repository,
+          group.items.map((item) => item.pr.id),
+          group.unseen,
+        ])
+    expect(repositoriesOf("awaiting-review")).toEqual([
+      ["cevr/rift", [2], 1],
+      ["cevr/okra", [3, 1], 1],
+    ])
+    expect(repositoriesOf("approved")).toEqual([["cevr/okra", [4], 1]])
+  })
 })
